@@ -1,0 +1,9 @@
+{
+  "name": "remedi-copilot-login-tools",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Project-local official Copilot CLI for user-initiated sign-in",
+  "dependencies": {
+    "@github/copilot": "1.0.102"
+  }
+}

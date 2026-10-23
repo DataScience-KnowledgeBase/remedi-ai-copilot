@@ -1,0 +1,14 @@
+.env
+.venv
+**/.venv
+.runtime
+tools
+**/__pycache__
+**/node_modules
+**/dist
+**/.pytest_cache
+**/.ruff_cache
+data
+reports
+AgenticAI
+.git

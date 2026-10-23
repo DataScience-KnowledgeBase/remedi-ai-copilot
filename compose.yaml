@@ -1,0 +1,47 @@
+name: remedi-ai-copilot
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/remedi-copilot.db
+      COPILOT_HOME: /data/copilot-home
+      COPILOT_WORK_DIRECTORY: /data/empty-workspace
+      FRONTEND_DIST: /nonexistent
+    volumes: [incident-data:/data]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: [/tmp:size=128m]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=15)"]
+      interval: 30s
+      timeout: 20s
+      start_period: 30s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2"
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports: ["127.0.0.1:8082:8080"]
+    depends_on: [backend]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp:size=32m]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      retries: 3
+volumes:
+  incident-data:

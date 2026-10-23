@@ -1,0 +1,7 @@
+# Explicit fixture-only validation, never a live Copilot benchmark.
+services:
+  backend:
+    environment:
+      PROVIDER: demo
+      COPILOT_ALLOW_EGRESS: "false"
+      DATABASE_PATH: /data/demo-validation.db
