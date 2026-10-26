@@ -1,0 +1,12 @@
+services:
+  backend:
+    environment:
+      GITHUB_GITOPS_ENABLED: "true"
+      GITHUB_APP_ID: ${REMEDI_GITHUB_APP_ID:?Set the GitHub App ID}
+      GITHUB_INSTALLATION_ID: ${REMEDI_GITHUB_INSTALLATION_ID:?Set the installation ID}
+      GITHUB_PRIVATE_KEY_FILE: /run/github/app.pem
+    volumes:
+      - type: bind
+        source: ${REMEDI_GITHUB_PRIVATE_KEY_FILE:?Set an absolute private key path outside Git}
+        target: /run/github/app.pem
+        read_only: true

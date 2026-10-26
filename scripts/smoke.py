@@ -53,6 +53,8 @@ def validate_evidence(incident, events):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--live", action="store_true")
+    parser.add_argument("--kubernetes", action="store_true")
+    parser.add_argument("--github", action="store_true")
     args = parser.parse_args()
     token = os.environ.get("OPERATOR_TOKEN", "")
     if not token:
@@ -64,10 +66,26 @@ def main():
         or ready.get("provider") != "copilot"
         or config.get("provider") != "copilot"
         or config.get("orchestrator") != "google-adk"
-        or config.get("simulation_only") is not True
+        or config.get("simulation_only") is not (not args.kubernetes)
         or config.get("copilot_tool_access") != "disabled"
     ):
         raise RuntimeError("Deployment does not satisfy the live, isolated ADK pilot contract.")
+    if args.kubernetes:
+        kubernetes = config.get("kubernetes", {})
+        if (
+            kubernetes.get("enabled") is not True
+            or kubernetes.get("owner_approval_required") is not True
+            or not kubernetes.get("namespace", "").startswith("remedi-")
+        ):
+            raise RuntimeError("Kubernetes deployment must retain namespace and owner gates.")
+    if args.github:
+        repository = config.get("github_gitops", {})
+        if (
+            not args.kubernetes or repository.get("enabled") is not True
+            or repository.get("approval_action") != "create_pull_request"
+            or repository.get("manual_merge_required") is not True
+        ):
+            raise RuntimeError("GitHub mode must retain PR, manual merge and Kubernetes gates.")
     result = {"ready": True, "provider": "copilot", "model": config["model"]}
     if args.live:
         created = request(

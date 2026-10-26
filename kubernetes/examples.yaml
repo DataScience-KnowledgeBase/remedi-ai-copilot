@@ -1,0 +1,134 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remedi-crashloop
+  labels: {app.kubernetes.io/managed-by: remedi-ai, remedi.demo/target: remedi-crashloop}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels: {remedi.demo/target: remedi-crashloop}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/managed-by: remedi-ai, remedi.demo/target: remedi-crashloop}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 3
+      securityContext: {runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: demo
+          image: python:3.12-alpine
+          command: ["python", "-B", "-u", "-c"]
+          args:
+            - |
+              import os
+              from http.server import HTTPServer, SimpleHTTPRequestHandler
+              if os.environ.get("CRASH") == "true":
+                  raise RuntimeError("Deliberate remedi demo startup failure")
+              memory = bytearray(int(os.environ.get("ALLOCATE_MIB", "0")) * 1024 * 1024)
+              HTTPServer(("0.0.0.0", 8080), SimpleHTTPRequestHandler).serve_forever()
+          env: [{name: CRASH, value: "true"}]
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {cpu: 100m, memory: 32Mi}}
+          readinessProbe: {tcpSocket: {port: 8080}, initialDelaySeconds: 1, periodSeconds: 2}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remedi-oom
+  labels: {app.kubernetes.io/managed-by: remedi-ai, remedi.demo/target: remedi-oom}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels: {remedi.demo/target: remedi-oom}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/managed-by: remedi-ai, remedi.demo/target: remedi-oom}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 3
+      securityContext: {runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: demo
+          image: python:3.12-alpine
+          command: ["python", "-B", "-u", "-c"]
+          args:
+            - |
+              import os
+              from http.server import HTTPServer, SimpleHTTPRequestHandler
+              if os.environ.get("CRASH") == "true":
+                  raise RuntimeError("Deliberate remedi demo startup failure")
+              memory = bytearray(int(os.environ.get("ALLOCATE_MIB", "0")) * 1024 * 1024)
+              HTTPServer(("0.0.0.0", 8080), SimpleHTTPRequestHandler).serve_forever()
+          env: [{name: ALLOCATE_MIB, value: "64"}]
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {cpu: 100m, memory: 32Mi}}
+          readinessProbe: {tcpSocket: {port: 8080}, initialDelaySeconds: 1, periodSeconds: 2}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remedi-imagepull
+  labels: {app.kubernetes.io/managed-by: remedi-ai, remedi.demo/target: remedi-imagepull}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels: {remedi.demo/target: remedi-imagepull}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/managed-by: remedi-ai, remedi.demo/target: remedi-imagepull}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 3
+      securityContext: {runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: demo
+          image: python:remedi-missing-demo
+          command: ["python", "-B", "-u", "-c"]
+          args:
+            - |
+              import os
+              from http.server import HTTPServer, SimpleHTTPRequestHandler
+              if os.environ.get("CRASH") == "true":
+                  raise RuntimeError("Deliberate remedi demo startup failure")
+              memory = bytearray(int(os.environ.get("ALLOCATE_MIB", "0")) * 1024 * 1024)
+              HTTPServer(("0.0.0.0", 8080), SimpleHTTPRequestHandler).serve_forever()
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {cpu: 100m, memory: 32Mi}}
+          readinessProbe: {tcpSocket: {port: 8080}, initialDelaySeconds: 1, periodSeconds: 2}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remedi-pending
+  labels: {app.kubernetes.io/managed-by: remedi-ai, remedi.demo/target: remedi-pending}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels: {remedi.demo/target: remedi-pending}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/managed-by: remedi-ai, remedi.demo/target: remedi-pending}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 3
+      nodeSelector: {remedi.demo/unavailable: "true"}
+      securityContext: {runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: demo
+          image: python:3.12-alpine
+          command: ["python", "-B", "-u", "-c"]
+          args:
+            - |
+              import os
+              from http.server import HTTPServer, SimpleHTTPRequestHandler
+              if os.environ.get("CRASH") == "true":
+                  raise RuntimeError("Deliberate remedi demo startup failure")
+              memory = bytearray(int(os.environ.get("ALLOCATE_MIB", "0")) * 1024 * 1024)
+              HTTPServer(("0.0.0.0", 8080), SimpleHTTPRequestHandler).serve_forever()
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {cpu: 100m, memory: 32Mi}}
+          readinessProbe: {tcpSocket: {port: 8080}, initialDelaySeconds: 1, periodSeconds: 2}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RemediAI Copilot - GitHub remediation</title>
+<link rel="stylesheet" href="user-guide.css">
+</head>
+<body>
+<main class="document">
+<h1 id="owner-approved-repository-remediation">Owner-approved repository remediation</h1>
+<h2 id="what-the-owner-button-does">What the owner button does</h2>
+<p>With <code>compose.github.yaml</code> enabled on top of the Kubernetes overlay, the button
+is <strong>Approve &amp; create PR</strong>. It records approval of the exact persisted manifest
+diff, then creates a branch, commit and pull request through the repository-scoped
+GitHub App. It does not merge the PR or patch the cluster.</p>
+<pre><code class="language-text">Real pod events + immutable repository configuration
+  -&gt; ADK diagnosis -&gt; fresh AI reviewer -&gt; bounded manifest diff
+  -&gt; owner approval -&gt; PR -&gt; human merge -&gt; merge-commit CI
+  -&gt; namespace-scoped deployment -&gt; three consecutive readiness checks
+  -&gt; verified closure OR explicit failure/configuration rollback
+</code></pre>
+<p>The four Kubernetes examples remain real. The original eight synthetic
+scenarios keep their existing simulation behavior.</p>
+<h2 id="which-access-token-belongs-in-the-browser">Which access token belongs in the browser?</h2>
+<p>Use the application's <strong>OWNER_TOKEN</strong> from the private local configuration to
+approve or reject. Use its <strong>OPERATOR_TOKEN</strong> to start diagnosis. These are role
+credentials, not GitHub tokens. Never paste either into chat.</p>
+<p>Do not enter a GitHub PAT, Copilot credential, App ID, installation ID or PEM key
+into the application's Access token box. The GitHub App key is mounted read-only
+on the backend; installation access tokens are generated server-side and kept
+only in memory.</p>
+<p>After changing roles, the selected incident stays selected and the reason is
+cleared. The button is enabled only in an owner session with a reason of at least
+eight trimmed characters and a persisted repository diff. Backend authorization
+and state checks remain authoritative.</p>
+<h2 id="one-time-publication-prerequisite">One-time publication prerequisite</h2>
+<p>The application reads <code>kubernetes/examples.yaml</code> from this repository's <strong>main</strong>
+branch at a pinned commit. It never substitutes a local working copy.
+The integration code, dependency metadata, workflow and demo manifest must first
+be published through a reviewed setup PR and manually merged after CI succeeds.</p>
+<p>Until then, <strong>Repository-backed deployment</strong> shows a clear blocked status.
+The old four live-only proposals cannot be approved in GitHub mode: they have no
+repository evidence or diff. Reject those legacy proposals as the owner, then
+start a fresh diagnosis as an operator after setup is merged. Do not reset the
+failing workloads just to create a new diagnosis.</p>
+<p>Bootstrap publication is separate from incident remediation. The setup PR may
+contain application, test and workflow files; subsequent automated remediation
+PRs may modify only <code>kubernetes/examples.yaml</code>, and only one approved field in
+one of the four named Deployment documents.</p>
+<h2 id="local-configuration">Local configuration</h2>
+<p>Prerequisites: Docker Desktop Kubernetes, the existing restricted service account,
+and a GitHub App installed only on <code>DataScience-KnowledgeBase/remedi-ai-copilot</code>.
+App repository permissions are Contents/Pull requests read-write and Actions/Checks
+read-only. The App cannot bypass branch protection and has no workflow-write or
+administration permission.</p>
+<p>Run from the project root, using the private key's actual path:</p>
+<pre><code class="language-powershell">$env:REMEDI_GITHUB_APP_ID = &quot;5483871&quot;
+$env:REMEDI_GITHUB_INSTALLATION_ID = &quot;175563857&quot;
+$env:REMEDI_GITHUB_PRIVATE_KEY_FILE = &quot;C:\Users\Kura Dheeraj\.remedi-secrets\remedi-ai-config-agent.2026-10-26.private-key.pem&quot;
+docker compose -f compose.yaml -f compose.kubernetes.yaml -f compose.github.yaml up -d --build --wait
+</code></pre>
+<p>This is a local working-tree build, not evidence of a successful GitHub release.
+The key stays outside Git and is excluded from the model's evidence.
+The repository is public by the owner's explicit choice. Inspect every proposed
+diff before approving: no secrets may appear in manifests, PR bodies or commits.</p>
+<p>For Actions deployment, configure these <strong>repository variable values</strong>, not secrets:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>REMEDI_KUBERNETES_CREDENTIALS_DIR</code></td>
+<td>Absolute local <code>.runtime\kubernetes</code> directory</td>
+</tr>
+<tr>
+<td><code>REMEDI_GITHUB_PRIVATE_KEY_FILE</code></td>
+<td>Absolute external private-key file path, not its contents</td>
+</tr>
+<tr>
+<td><code>REMEDI_GITHUB_APP_ID</code></td>
+<td><code>5483871</code></td>
+</tr>
+<tr>
+<td><code>REMEDI_GITHUB_INSTALLATION_ID</code></td>
+<td><code>175563857</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>REMEDI_LOCAL_ENV_FILE</code> continues to point to the private application configuration.
+Only the local Windows runner reads the private files. Hosted CI receives no real
+credentials or cluster access. Never upload the PEM as a repository variable or artifact.</p>
+<h2 id="walkthrough">Walkthrough</h2>
+<ol>
+<li>Connect as an operator and check <strong>Repository-backed deployment</strong> is READY.</li>
+<li>Select one Kubernetes example and click <strong>Diagnose live pods</strong>.</li>
+<li>Inspect actual pod evidence, selected repository configuration, immutable
+source commit, model recommendation, reviewer result and the proposed diff.
+YAML formatting is normalized; semantic validation allows only the bounded field edit.</li>
+<li>Connect with the application's owner token. Review the change and rollback
+plan, enter a reason and click <strong>Approve &amp; create PR</strong>.</li>
+<li>The status becomes <code>awaiting_merge</code>. Open the displayed PR link.
+There is no cluster write at this stage.</li>
+<li>Review the diff and passing PR checks in GitHub; manually merge it yourself.
+The application never merges or enables auto-merge.</li>
+<li>The status becomes <code>awaiting_ci</code>. The backend polls approximately every ten
+seconds and requires the trusted GitHub Actions CI check on the exact merge
+commit to succeed. Missing, pending, failed, cancelled, skipped or spoofed
+checks do not authorize deployment.</li>
+<li>After CI succeeds, the backend's bounded deployment adapter applies only
+the approved field, validated against the merged manifest. It does not run
+model-generated commands or apply an arbitrary repository YAML document.</li>
+<li>Watch <code>executing</code> and <code>verifying</code>: actual replica counts, pod identity,
+readiness and consecutive checks are streamed. Three consecutive healthy
+samples on the same current-revision pod close the incident.</li>
+</ol>
+<p>The existing Actions pipeline still tests manifest-only merges, but skips rebuilding
+the application deployment for those merges. This avoids restarting the controller
+that is waiting to deploy the remediation. Application-code changes still use
+the normal gated Docker deployment.</p>
+<p>Process examples sequentially. A concurrent change to main, PR head, target
+template or approved configuration can invalidate a proposal; reanalyse instead
+of weakening the gate or automatically rebasing an approved diff.</p>
+<h2 id="failure-rollback-and-recovery-boundaries">Failure, rollback and recovery boundaries</h2>
+<ul>
+<li>Missing GitHub credentials, permissions or remote manifest fail explicitly.
+There is no direct-patch fallback in repository-backed mode.</li>
+<li>Repository changes after diagnosis can require fresh analysis.</li>
+<li>A changed PR head, extra changed files, nonhuman merge or differing merged
+manifest blocks deployment.</li>
+<li>Deployment uses an atomic UID/resourceVersion-tested bounded patch, only if
+the live pod-template checkpoint is unchanged.</li>
+<li>A rollout timeout can restore the approved configuration field if no external
+template change occurred. This does <strong>not</strong> mean recovery: the original
+failing configuration is restored. A human-reviewed repository revert PR is
+then required to resolve desired-state drift. It is not silently auto-reverted.</li>
+<li>Network failures or restarts after patch submission may leave a change applied.
+Execution/verification is not blindly replayed. Check the cluster and audit.</li>
+<li>Waiting-for-merge/CI states survive restarts. Deterministic incident branches
+and exact-content validation make interrupted PR creation resumable without
+duplicate commits or pull requests.</li>
+<li>Human merge waits have no automatic deadline. Token expiry, API errors and
+closed-unmerged PRs are explicit failures, not successful deployment.</li>
+</ul>
+<p>This pilot still uses shared application role tokens, not independently attributed
+enterprise human identity. Repository rules require PRs, successful CI and manual
+merge without bypass; no second approving reviewer is required for the current
+single-maintainer setup.</p>
+<h2 id="validation-scope">Validation scope</h2>
+<p>Mock GitHub/Kubernetes tests cover authentication, exact manifest edits, approval
+and legacy-proposal gates, idempotent PR creation, manual merge and trusted CI.
+Mock browser tests click the actual owner button and verify its request and
+waiting/error states without creating a real PR or changing a cluster.</p>
+<p>No test result alone establishes a real PR merge/deployment. Those steps require
+the owner's actual approval and manual merge; the application leaves them pending.</p>
+</main>
+</body>
+</html>

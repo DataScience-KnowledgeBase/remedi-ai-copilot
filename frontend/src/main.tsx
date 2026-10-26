@@ -17,6 +17,8 @@ type Configuration = {
   max_agent_steps: number; prompt_version: string; runbook_version: string;
   pricing: { input_usd_per_million: number; output_usd_per_million: number; gpu_usd_per_hour: number };
   billing_basis: string;
+  kubernetes?: { enabled: boolean; namespace: string; owner_approval_required: boolean };
+  github_gitops?: { enabled: boolean; repository: string; approval_action: string; manual_merge_required: boolean };
 };
 type Telemetry = {
   incident_count: number; llm_calls: number; input_tokens: number; output_tokens: number;
@@ -34,6 +36,10 @@ const scenarios = [
   ["unknown_signal", "Unknown signal", "Uncertain / escalate"],
   ["verification_failure", "Recovery failure", "Verify / rollback"],
   ["prompt_injection", "Untrusted signal", "Injection / policy boundary"],
+  ["k8s_crashloop", "Kubernetes CrashLoopBackOff", "REAL pods / AI diagnosis / owner approval"],
+  ["k8s_oom", "Kubernetes OOMKilled", "REAL pods / AI diagnosis / owner approval"],
+  ["k8s_imagepull", "Kubernetes ImagePullBackOff", "REAL pods / AI diagnosis / owner approval"],
+  ["k8s_pending", "Kubernetes Pending / FailedScheduling", "REAL pods / AI diagnosis / owner approval"],
 ];
 const terminal = new Set(["closed", "rolled_back", "escalated", "rejected", "failed"]);
 const label = (value: string) => value.replaceAll("_", " ");
@@ -54,8 +60,10 @@ function App() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [streamState, setStreamState] = useState("idle");
+  const [streamRevision, setStreamRevision] = useState(0);
   const [filter, setFilter] = useState("");
   const [providerStatus, setProviderStatus] = useState("");
+  const [repositoryStatus, setRepositoryStatus] = useState("");
 
   const api = useCallback(async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
     const response = await fetch(`/api${path}`, {
@@ -88,19 +96,33 @@ function App() {
     }
   }, [token]);
 
+  const checkRepository = useCallback(async () => {
+    const response = await fetch("/api/repository-status", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.status !== 200 && response.status !== 503) {
+      throw new Error(`Repository status check failed: ${response.status}`);
+    }
+    const data = await response.json() as { ready: boolean; message: string };
+    setRepositoryStatus(`${data.ready ? "READY" : "BLOCKED"}: ${data.message}`);
+  }, [token]);
+
   useEffect(() => {
     if (!token) return;
     let active = true;
     Promise.all([api<Configuration>("/config"), api<{ items: Runbook[] }>("/runbooks"),
       api<Feedback[]>("/feedback")]).then(([settings, books, outcomes]) => {
       if (active) { setConfig(settings); setRunbooks(books.items); setFeedback(outcomes); }
+      if (active && settings.github_gitops?.enabled) {
+        void checkRepository().catch((err: Error) => { if (active) setError(err.message); });
+      }
     }).catch((err: Error) => { if (active) setError(err.message); });
     void checkProvider().catch((err: Error) => { if (active) setError(err.message); });
     const update = () => refresh().catch((err: Error) => { if (active) setError(err.message); });
     void update();
     const timer = window.setInterval(update, 6000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [token, api, refresh, checkProvider]);
+  }, [token, api, refresh, checkProvider, checkRepository]);
 
   useEffect(() => {
     if (!selected || !token) return;
@@ -139,10 +161,10 @@ function App() {
       if (!controller.signal.aborted) { setError(err.message); setStreamState("disconnected"); }
     });
     return () => controller.abort();
-  }, [selected, token, refresh]);
+  }, [selected, token, refresh, streamRevision]);
 
   async function login(event: React.FormEvent) {
-    event.preventDefault(); setError(""); setConfig(null); setSelected(""); setToken(draftToken);
+    event.preventDefault(); setError(""); setConfig(null); setReason(""); setToken(draftToken);
     setDraftToken("");
   }
   async function simulate() {
@@ -161,7 +183,7 @@ function App() {
     try {
       await api(`/incidents/${selected}/approval`, { method: "POST",
         body: JSON.stringify({ decision, reason }) });
-      setReason(""); await refresh();
+      setReason(""); await refresh(); setStreamRevision(value => value + 1);
     } catch (err) { setError(err instanceof Error ? err.message : "Approval failed"); }
     finally { setBusy(false); }
   }
@@ -172,6 +194,11 @@ function App() {
     anchor.download = `remedi-audit-${selected}.json`; anchor.click(); URL.revokeObjectURL(url);
   }
   const current = incidents.find(item => item.id === selected);
+  const realScenario = scenario.startsWith("k8s_");
+  const repositoryMode = Boolean(config?.github_gitops?.enabled && current?.scenario.startsWith("k8s_"));
+  const repositoryPlan = events.filter(event => event.stage === "repository_plan").at(-1);
+  const pullRequest = events.find(event => event.stage === "github_pr");
+  const pullRequestUrl = pullRequest?.payload.url;
   const filtered = incidents.filter(item => `${item.title} ${item.status} ${item.service}`.toLowerCase()
     .includes(filter.toLowerCase()));
   const priced = config?.provider === "ollama" ? config.pricing.gpu_usd_per_hour > 0
@@ -188,7 +215,10 @@ function App() {
         </button>)}</nav>
       <div className="boundary"><span className="dot" /> Governed by design
         <p>Automate only inside the approved risk boundary.</p>
-        <small>SIMULATION ADAPTER<br />No production systems are modified.</small>
+        <small>{!config ? <>EXECUTION SCOPE NOT LOADED<br />Connect to inspect enabled adapters.</>
+          : config.kubernetes?.enabled ? <>REAL KUBERNETES ENABLED<br />
+          Namespace: {config.kubernetes.namespace}<br />Owner approval for every change.</>
+          : <>SIMULATION ADAPTER<br />No production systems are modified.</>}</small>
       </div>
     </aside>
     <main>
@@ -201,7 +231,7 @@ function App() {
         {config && <span className="badge">{config.role} session</span>}
       </section>
       <form className="auth panel" onSubmit={login}>
-        <label htmlFor="token">Access token <small>(memory only; use owner token to approve)</small></label>
+        <label htmlFor="token">Access token <small>(application OWNER_TOKEN to approve; not a GitHub token)</small></label>
         <input id="token" type="password" value={draftToken} onChange={e => setDraftToken(e.target.value)}
           placeholder="Enter operator or owner token" required minLength={32} autoComplete="off" />
         <button type="submit">Connect</button>
@@ -209,6 +239,7 @@ function App() {
           setToken(""); setConfig(null); setIncidents([]); setEvents([]); setSelected("");
           setTelemetry(null); setRunbooks([]); setFeedback([]);
           setProviderStatus("");
+          setRepositoryStatus("");
         }}>Disconnect</button>}
       </form>
       {error && <div className="error" role="alert">{error}<button onClick={() => setError("")}>Dismiss</button></div>}
@@ -221,6 +252,14 @@ function App() {
           {config.provider === "copilot" && <p>Official GitHub Copilot SDK / built-in tools disabled / no GPU required.
             Sign in locally with scripts\copilot-login.ps1. Subscription limits and organization policies apply.</p>}
         </section>
+        {config.github_gitops?.enabled && <section className="panel provider-connection">
+          <div className="section-title"><h2>Repository-backed deployment</h2><span className="badge">Human merge required</span></div>
+          <p>{config.github_gitops.repository} / GitHub App credentials stay on the server.</p>
+          <p role="status">{repositoryStatus || "Checking repository configuration..."}</p>
+          <button className="secondary" onClick={() => void checkRepository().catch((err: Error) => setError(err.message))}>Recheck repository</button>
+          <p>Owner approval creates the reviewed PR only. Manual merge and successful CI gate deployment.
+            The application never merges PRs or bypasses protection.</p>
+        </section>}
         <section className="stats" aria-label="Operational metrics">
           <Metric label="INCIDENTS" value={String(telemetry?.incident_count ?? 0)} note="Last 100 incidents" />
           <Metric label="VERIFIED RECOVERIES" value={String(telemetry?.outcomes.closed ?? 0)} note="Three health probes passed" />
@@ -233,11 +272,14 @@ function App() {
               <div key={step}><b>{String(index + 1).padStart(2, "0")}</b><span>{step}</span></div>)}</div>
             <p>High impact or low confidence <span className="arrow">&rarr;</span> Recommend <span className="arrow">&rarr;</span> Owner approval <span className="arrow">&rarr;</span> Deploy + verify / rollback</p>
           </section>
-          <section className="simulate panel"><div><h2>Inject a synthetic incident</h2><p>Exercise a complete, auditable workflow without production access.</p></div>
+          <section className="simulate panel"><div><h2>{realScenario ? "Diagnose real Kubernetes pods" : "Inject a synthetic incident"}</h2>
+            <p>{realScenario ? `Read live events in ${config.kubernetes?.namespace}. No cluster changes until owner approval.`
+              : "Exercise a complete, auditable workflow without production access."}</p></div>
             <label className="sr-only" htmlFor="scenario">Incident scenario</label>
-            <select id="scenario" value={scenario} onChange={e => setScenario(e.target.value)}>{scenarios.map(([id, name, hint]) =>
+            <select id="scenario" value={scenario} onChange={e => setScenario(e.target.value)}>{scenarios.filter(([id]) =>
+              !id.startsWith("k8s_") || config.kubernetes?.enabled).map(([id, name, hint]) =>
               <option key={id} value={id}>{name} - {hint}</option>)}</select>
-            <button disabled={busy || config.role !== "operator"} onClick={() => void simulate()}>{busy ? "Submitting..." : "+ Simulate incident"}</button>
+            <button disabled={busy || config.role !== "operator"} onClick={() => void simulate()}>{busy ? "Submitting..." : realScenario ? "Diagnose live pods" : "+ Simulate incident"}</button>
           </section>
           <div className="operations-grid">
             <section className="panel queue"><div className="section-title"><h2>Incident queue</h2><span className="badge">{incidents.length}</span></div>
@@ -253,17 +295,45 @@ function App() {
               {!current ? <div className="empty tall">Select an incident to inspect its evidence, decisions and recovery.</div> : <>
                 <div className="detail-heading"><h3>{current.title}</h3><Status status={current.status} /></div>
                 <small className="mono">{current.id}</small>
+                {(streamState === "disconnected" || streamState === "complete") && !terminal.has(current.status) &&
+                  <button className="secondary" onClick={() => setStreamRevision(value => value + 1)}>Reconnect live trace</button>}
+                <RemediationProgress incident={current} events={events} />
                 {current.error && <div className="error">{current.error}</div>}
                 {current.plan && <div className="recommendation"><div className="eyebrow">AGENT RECOMMENDATION</div>
                   <h3>{label(current.plan.action)} <span>{(current.plan.confidence * 100).toFixed(0)}% confidence</span></h3>
                   <p>{current.plan.summary}</p><small>Evidence: {current.plan.evidence_ids.join(" / ") || "none"}</small>
                 </div>}
+                {current.scenario.startsWith("k8s_") && events.filter(event => event.stage === "kubernetes_plan").slice(-1).map(event =>
+                  <div className="recommendation" key={event.seq}><h3>Exact Kubernetes change for approval</h3>
+                    <p>Includes the namespace, target, bounded field change and rollback checkpoint. Changed targets invalidate approval.</p>
+                    <pre>{JSON.stringify(event.payload.change, null, 2)}</pre>
+                  </div>)}
+                {repositoryMode && repositoryPlan && <div className="recommendation">
+                  <h3>Repository manifest diff for owner approval</h3>
+                  <p>Only the four demo Deployment configurations are eligible. YAML formatting is normalized;
+                    the permitted semantic change is limited to the proposed field.</p>
+                  <pre>{typeof repositoryPlan.payload.plan === "object" && repositoryPlan.payload.plan !== null
+                    && "diff" in repositoryPlan.payload.plan && typeof repositoryPlan.payload.plan.diff === "string"
+                    ? repositoryPlan.payload.plan.diff : "Repository diff is unavailable; do not approve."}</pre>
+                </div>}
+                {repositoryMode && typeof pullRequestUrl === "string"
+                  && pullRequestUrl.startsWith(`https://github.com/${config.github_gitops?.repository}/pull/`) &&
+                  <div className="recommendation"><h3>Owner-approved remediation PR</h3>
+                    <a href={pullRequestUrl} target="_blank" rel="noopener noreferrer">Open pull request for manual review and merge</a>
+                    <p>Approval is not deployment. Waiting for human merge and merge-commit CI before cluster changes.</p>
+                  </div>}
                 {current.status === "awaiting_approval" && <div className="approval"><h3>Accountable owner approval required</h3>
-                  <p>Approve the exact persisted proposal. Operators cannot approve their own changes.</p>
+                  <p>{repositoryMode ? "Approve the exact repository diff to create a PR. This does not merge or deploy it."
+                    : "Approve the exact persisted proposal. Operators cannot approve their own changes."}</p>
+                  {repositoryMode && !repositoryPlan && <p role="alert">
+                    This legacy proposal has no repository diff. Approval is blocked.
+                    Reject it, then diagnose again as an operator after the integration manifests are published on main.
+                  </p>}
                   {config.role === "owner" ? <><textarea aria-label="Approval reason" placeholder="Record your review and justification (8+ characters)" minLength={8} maxLength={500} value={reason} onChange={e => setReason(e.target.value)} />
-                    <div className="actions"><button disabled={busy || reason.trim().length < 8} onClick={() => void decide("approve")}>Approve change</button>
+                    <div className="actions"><button disabled={busy || reason.trim().length < 8 || (repositoryMode && !repositoryPlan)} onClick={() => void decide("approve")}>{repositoryMode ? "Approve & create PR" : "Approve change"}</button>
                       <button className="secondary" disabled={busy || reason.trim().length < 8} onClick={() => void decide("reject")}>Reject</button></div></>
-                    : <p className="muted">Connect using an owner token to review this gate.</p>}
+                    : <p className="muted">Enter the application OWNER_TOKEN in Access token and click Connect.
+                      Do not enter a GitHub access token, App ID or private key. The selected incident is retained.</p>}
                 </div>}
                 <ol className="timeline" aria-live="polite">{events.map(event => <li key={event.seq}>
                   <div className="event-top"><b>{event.stage.toUpperCase()}</b><time>{new Date(event.at).toLocaleTimeString()}</time></div>
@@ -279,7 +349,7 @@ function App() {
         {tab === "Runbooks" && <section className="cards">{runbooks.map(book => <article className="panel" key={book.id}>
           <div className="section-title"><span className="mono">{book.id}</span><span className="badge">{book.risk} risk</span></div>
           <h2>{label(book.action)}</h2><p>{book.description}</p><h3>Rollback</h3><p>{book.rollback}</p>
-          <small>Version {config.runbook_version} / simulator-v1 / reviewed policy</small>
+          <small>Version {config.runbook_version} / {book.id.startsWith("RB-K8S") ? "real Kubernetes / owner approval" : "simulator-v1"} / reviewed policy</small>
         </article>)}</section>}
         {tab === "Observability" && <section className="panel"><h2>Inference &amp; governance telemetry</h2>
           <p>Provider-specific timings, token usage, estimated cost and prompt version are recorded on every successful inference step. Failures appear explicitly in the audit trail and metrics.</p>
@@ -301,9 +371,65 @@ function App() {
             <p>{item.candidate}</p><small className="mono">{item.incident_id}</small></article>)}
         </section>}
       </>}
-      <footer>RemediAI Copilot API / Evidence before action / Synthetic data and simulated infrastructure</footer>
+      <footer>RemediAI Copilot API / Evidence before action / {!config ? "Connect to view execution scope" : config.kubernetes?.enabled
+        ? `Real Kubernetes: ${config.kubernetes.namespace} / Other scenarios remain simulated`
+        : "Synthetic data and simulated infrastructure"}</footer>
     </main>
   </div>;
+}
+
+function RemediationProgress({ incident, events }: { incident: Incident; events: AuditEvent[] }) {
+  const real = incident.scenario.startsWith("k8s_");
+  const repositoryMode = events.some(event => ["repository_plan", "github_pr", "merge"].includes(event.stage))
+    || ["awaiting_merge", "awaiting_ci"].includes(incident.status);
+  const phases = repositoryMode
+    ? ["Repository + live evidence", "AI review + manifest diff", "Owner approval", "PR + human merge", "Merge-commit CI", "Deploy", "Verify recovery", "Outcome"]
+    : ["Evidence + AI diagnosis", "AI review + policy", "Owner approval", "Apply change", "Verify recovery", "Outcome"];
+  const latest = events.filter(event => event.stage === "progress").at(-1);
+  const stopped = terminal.has(incident.status);
+  const index = stopped ? phases.length - 1 : incident.status === "verifying" ? (repositoryMode ? 6 : 4)
+    : incident.status === "executing" ? (repositoryMode ? 5 : 3)
+    : incident.status === "awaiting_ci" ? 4 : incident.status === "awaiting_merge" ? 3
+    : ["awaiting_approval", "approved"].includes(incident.status) ? 2
+    : latest?.payload.phase === "review" ? 1 : 0;
+  const passes = latest?.payload.consecutive_passes;
+  const recorded = [
+    events.some(event => ["triage", "observe", "reason"].includes(event.stage)),
+    events.some(event => ["judge", "decision"].includes(event.stage)),
+    incident.status === "awaiting_approval" || events.some(event => event.stage === "approval"),
+    ...(repositoryMode ? [
+      events.some(event => event.stage === "github_pr"),
+      events.some(event => event.stage === "merge"),
+    ] : []),
+    events.some(event => event.stage === "execute"),
+    events.some(event => event.stage === "verify"),
+    stopped,
+  ];
+  return <section className="remediation-progress" aria-label="Remediation progress">
+    <div className="section-title"><h3>Remediation progress</h3>
+      <span className="badge">{real ? "LIVE KUBERNETES" : "SIMULATED ACTIONS"}</span></div>
+    <ol>{phases.map((phase, position) => <li key={phase}
+      className={position === index ? "current" : recorded[position] ? "past" : "pending"}
+      aria-current={position === index ? "step" : undefined}>
+      <span>{position + 1}</span>{phase}
+    </li>)}</ol>
+    <p role="status">{incident.status === "awaiting_approval"
+      ? "Paused: owner approval required. No remediation patch has been applied."
+      : incident.status === "awaiting_merge" ? "PR created. Waiting for a human to merge; no cluster change applied."
+      : incident.status === "awaiting_ci" ? "Merged. Waiting for successful CI on the exact merge commit; no cluster change applied."
+      : incident.status === "closed" ? "Recovery verified; incident closed."
+      : incident.status === "rolled_back" ? "Rollback recorded. Review the audit outcome; recovery is not established."
+      : incident.status === "escalated" ? "Escalated without remediation; operator investigation required."
+      : incident.status === "rejected" ? "Owner rejected the proposal; no remediation was applied."
+      : incident.status === "failed" ? "Workflow stopped on error. Inspect the audit trail and actual workload state."
+      : incident.status === "executing" ? "Applying the approved change; waiting for the adapter response."
+      : incident.status === "verifying" && latest?.payload.phase !== "verification" ? "Watching rollout and collecting recovery checks."
+      : latest?.message ?? (incident.status === "queued" ? "Queued for evidence collection." : "Workflow in progress.")}</p>
+    {real && incident.status === "verifying" && typeof passes === "number" &&
+      <p>Measured consecutive recovery checks: <strong>{passes} / 3</strong></p>}
+    <small>Stages reflect recorded workflow activity, not a time estimate or a fabricated completion percentage.
+      {stopped && " Reaching an outcome does not necessarily mean recovery."}</small>
+  </section>;
 }
 
 function Status({ status }: { status: string }) {

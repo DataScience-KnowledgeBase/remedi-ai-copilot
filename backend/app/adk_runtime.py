@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
@@ -12,7 +12,7 @@ from google.genai import types
 from pydantic import PrivateAttr
 
 from app.config import Settings
-from app.domain import RUNBOOK_VERSION, RUNBOOKS, AgentStep, evidence
+from app.domain import KUBE_RUNBOOKS, KUBE_TARGETS, RUNBOOK_VERSION, RUNBOOKS, AgentStep, evidence
 from app.providers import Completion, Provider, ProviderError
 
 
@@ -73,29 +73,35 @@ async def run_agent(
     *,
     observations: list[dict] | None = None,
     review_of: AgentStep | None = None,
+    inspect_evidence: Callable[[], Awaitable[dict]] | None = None,
 ) -> tuple[AgentStep, list[dict]]:
     collected = list(observations or [])
     review = review_of is not None
-    context = {"synthetic": True, "service": job["service"], "observations": collected}
+    kubernetes = job["scenario"] in KUBE_TARGETS
+    context = {"synthetic": not kubernetes, "service": job["service"], "observations": collected}
     if review:
         context.update({"review_mode": True, "proposed_resolution": review_of.model_dump()})
 
     async def inspect_metrics() -> dict:
-        """Inspect trusted synthetic service metrics and diagnostic context."""
-        observation = evidence(job["scenario"])
+        """Inspect read-only service evidence, including live Kubernetes pod events when enabled."""
+        if kubernetes and inspect_evidence is None:
+            raise ProviderError("Kubernetes evidence adapter is required; no fixture fallback")
+        observation = await inspect_evidence() if inspect_evidence else evidence(job["scenario"])
         collected.append(observation)
         record_event(
             "observe",
-            "ADK invoked read-only metrics inspection.",
+            "ADK collected live Kubernetes pod evidence."
+            if kubernetes else "ADK invoked read-only metrics inspection.",
             {"tool": "inspect_metrics", "observation": observation},
         )
         return observation
 
     async def read_runbook(action: str) -> dict:
-        """Read a reviewed runbook for clear_cache, restart_worker or scale_workers."""
-        if action not in RUNBOOKS:
+        """Read a reviewed runbook for a proposed bounded remediation action."""
+        books = KUBE_RUNBOOKS if kubernetes else RUNBOOKS
+        if action not in books:
             raise ProviderError("Model requested an unavailable runbook")
-        observation = {**RUNBOOKS[action], "version": RUNBOOK_VERSION}
+        observation = {**books[action], "version": RUNBOOK_VERSION}
         collected.append(observation)
         record_event(
             "observe",
@@ -127,7 +133,7 @@ async def run_agent(
                     types.Part(
                         text="Independently review the proposed remedy."
                         if review
-                        else "Triage the synthetic incident using the approved read-only tools.",
+                        else "Triage the incident using the approved read-only tools.",
                     )
                 ],
             ),

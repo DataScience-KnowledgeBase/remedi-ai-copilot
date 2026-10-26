@@ -1,4 +1,10 @@
 .provider-connection{margin-bottom:20px}
+.remediation-progress{margin:18px 0;padding:16px;background:#f6fafc;border:1px solid #dce6ec;border-radius:8px}
+.remediation-progress h3{margin:0}.remediation-progress ol{list-style:none;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.remediation-progress li{font-size:11px;padding:9px;border-radius:6px;border:1px solid #dce6ec;color:#718096}
+.remediation-progress li span{display:inline-block;margin-right:6px;font-weight:700}.remediation-progress li.current{background:#e2f5ed;border-color:#57ad96;color:#155f4a;font-weight:700}
+.remediation-progress li.past{background:#eef3f7;color:#425771}.remediation-progress li.pending{opacity:.65}
+.remediation-progress p{margin:12px 0 8px;font-size:12px}
 :root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#243248;background:#f4f7fb;font-synthesis:none;font-weight:400;line-height:1.5}
 *{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{cursor:pointer;border:0;border-radius:7px;padding:10px 16px;background:#166d62;color:white;font-weight:600}button:hover{filter:brightness(.95)}button:disabled{opacity:.45;cursor:not-allowed}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #4c9dff;outline-offset:3px}
 input,select,textarea{border:1px solid #d8e1ec;background:white;border-radius:7px;padding:10px;color:#243248;max-width:100%}textarea{width:100%;min-height:90px}h1,h2,h3,p{margin-top:0}h1{font-size:34px;letter-spacing:-1px;margin-bottom:8px;color:#142136}h2{font-size:17px;margin-bottom:12px}h3{font-size:15px}p{color:#607087;font-size:14px}small{font-size:11px;color:#718096}.shell{display:flex;min-height:100vh}

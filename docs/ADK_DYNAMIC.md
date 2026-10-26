@@ -16,6 +16,13 @@ OpenAI API key, and VS Code sign-in is not harvested or reused.
 
 ## Dynamic cases and gates
 
+The additional [four live Kubernetes cases](KUBERNETES.md) use the same ADK
+tool dispatch and fresh reviewer, with actual pod/container/event evidence
+instead of curated diagnostic context. Their model action is not selected by a
+scenario label; structural adapter checks constrain the proposed change.
+All four require owner approval and expose live rollout/recovery progress.
+The three scenarios in the table below remain synthetic.
+
 | Scenario | Model's causal task | Human involvement |
 |---|---|---|
 | `dynamic_cache` | Explain stale cached schema despite utilization below the old threshold; choose a remedy | Low-risk recovery only with valid citations, adequate confidence and separate reviewer agreement |

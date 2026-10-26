@@ -12,11 +12,18 @@ Scenario = Literal[
     "dynamic_cache",
     "dynamic_worker",
     "dynamic_capacity",
+    "k8s_crashloop",
+    "k8s_oom",
+    "k8s_imagepull",
+    "k8s_pending",
 ]
-Action = Literal["clear_cache", "restart_worker", "scale_workers", "escalate"]
+Action = Literal[
+    "clear_cache", "restart_worker", "scale_workers", "escalate",
+    "fix_pod_startup", "increase_pod_memory", "restore_pod_image", "fix_pod_scheduling",
+]
 
-PROMPT_VERSION = "remedi-adk-dynamic-v2"
-RUNBOOK_VERSION = "2026-10-22.2"
+PROMPT_VERSION = "remedi-adk-kubernetes-v3"
+RUNBOOK_VERSION = "2026-10-26.1"
 
 RUNBOOKS = {
     "clear_cache": {
@@ -152,6 +159,49 @@ SCENARIOS: dict[str, dict[str, str | float | bool]] = {
     },
 }
 
+KUBE_TARGETS = {
+    "k8s_crashloop": "remedi-crashloop",
+    "k8s_oom": "remedi-oom",
+    "k8s_imagepull": "remedi-imagepull",
+    "k8s_pending": "remedi-pending",
+}
+KUBE_RUNBOOKS = {
+    "fix_pod_startup": {
+        "id": "RB-K8S-STARTUP-01", "action": "fix_pod_startup", "risk": "high",
+        "reversible": True, "verifiable": True,
+        "description": "Disable only the demo CRASH flag after diagnosing its startup failure.",
+        "rollback": "Restore the approved flag checkpoint; report unresolved pod health.",
+    },
+    "increase_pod_memory": {
+        "id": "RB-K8S-MEMORY-01", "action": "increase_pod_memory", "risk": "high",
+        "reversible": True, "verifiable": True,
+        "description": "Raise only the demo container memory limit from 32Mi to 128Mi for OOM.",
+        "rollback": "Restore the approved memory limit checkpoint; report unresolved pod health.",
+    },
+    "restore_pod_image": {
+        "id": "RB-K8S-IMAGE-01", "action": "restore_pod_image", "risk": "high",
+        "reversible": True, "verifiable": True,
+        "description": "Replace only the known missing demo image tag with python:3.12-alpine.",
+        "rollback": "Restore the approved image checkpoint; report unresolved pod health.",
+    },
+    "fix_pod_scheduling": {
+        "id": "RB-K8S-SCHEDULING-01", "action": "fix_pod_scheduling", "risk": "high",
+        "reversible": True, "verifiable": True,
+        "description": "Remove only the intentionally impossible remedi.demo/unavailable selector.",
+        "rollback": "Restore the approved selector checkpoint; report unresolved pod health.",
+    },
+}
+for _scenario, _deployment in KUBE_TARGETS.items():
+    SCENARIOS[_scenario] = {
+        "title": {
+            "k8s_crashloop": "Kubernetes: CrashLoopBackOff",
+            "k8s_oom": "Kubernetes: OOMKilled",
+            "k8s_imagepull": "Kubernetes: ImagePullBackOff",
+            "k8s_pending": "Kubernetes: Pending / FailedScheduling",
+        }[_scenario],
+        "service": _deployment, "severity": "high", "dynamic": True, "kubernetes": True,
+    }
+
 
 class IncidentInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -208,12 +258,24 @@ def evidence(scenario: str) -> dict:
 
 
 def policy(scenario: str, plan: AgentStep, observed: set[str]) -> tuple[str, str]:
+    if scenario in KUBE_TARGETS:
+        if plan.action == "escalate":
+            return "escalated", "Kubernetes diagnosis requires operator investigation."
+        book = KUBE_RUNBOOKS.get(plan.action)
+        if book is None:
+            return "escalated", "Only namespace-scoped Kubernetes runbooks are permitted."
+        required = {"EV-METRICS-01", str(book["id"])}
+        if not required.issubset(plan.evidence_ids) or not set(plan.evidence_ids) <= observed:
+            return "escalated", "Missing or fabricated Kubernetes evidence citations."
+        return "awaiting_approval", "Every real Kubernetes change requires owner approval."
     expected = SCENARIOS[scenario]["expected_action"]
     dynamic = bool(SCENARIOS[scenario].get("dynamic"))
     if (not dynamic and expected == "escalate") or plan.action == "escalate":
         return "escalated", "No approved runbook for this signal; operator investigation required."
     if not dynamic and plan.action != expected:
         return "escalated", "Proposed action is incompatible with the trusted incident signature."
+    if plan.action not in RUNBOOKS:
+        return "escalated", "Kubernetes actions cannot run against a simulated service."
     book = RUNBOOKS[plan.action]
     required = {"EV-METRICS-01", str(book["id"])}
     cited = set(plan.evidence_ids)

@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.domain import SCENARIOS, redact
+from app.domain import KUBE_TARGETS, SCENARIOS, redact
 
 TERMINAL = {"closed", "rolled_back", "escalated", "rejected", "failed"}
 
@@ -101,6 +101,14 @@ class Store:
             ).fetchone()[0]
             if count >= capacity:
                 raise Conflict("Incident queue is full; retry after active incidents finish")
+            if scenario in KUBE_TARGETS:
+                active = self.db.execute(
+                    f"SELECT id FROM incidents WHERE scenario=? "
+                    f"AND status NOT IN ({placeholders})",
+                    (scenario, *TERMINAL),
+                ).fetchone()
+                if active:
+                    raise Conflict("This Kubernetes target already has an active incident")
             fixture = SCENARIOS[scenario]
             incident_id = str(uuid.uuid4())
             stamp = now()
@@ -122,7 +130,11 @@ class Store:
                     model,
                 ),
             )
-            self._event(incident_id, "incident", "operator", "Synthetic signal received.", {})
+            self._event(
+                incident_id, "incident", "operator",
+                "Live Kubernetes diagnosis requested; remediation requires owner approval."
+                if scenario in KUBE_TARGETS else "Synthetic signal received.", {},
+            )
             return self.get(incident_id), True
 
     def get(self, incident_id: str) -> dict:
@@ -192,6 +204,14 @@ class Store:
                 "ORDER BY created_at LIMIT 1"
             ).fetchone()
             return self.get(row["id"]) if row else None
+
+    def pending_repository(self) -> list[dict]:
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT id FROM incidents WHERE status IN ('awaiting_merge','awaiting_ci') "
+                "ORDER BY created_at",
+            ).fetchall()
+            return [self.get(row["id"]) for row in rows]
 
     def recover(self):
         with self.lock:

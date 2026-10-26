@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1080" viewBox="0 0 1440 1080" role="img" aria-labelledby="title desc">
+  <title id="title">RemediAI Copilot - technical deployment and CI/CD</title>
+  <desc id="desc">Private repository sends CI jobs to hosted Linux. Successful main builds deploy on a Windows self-hosted runner using Docker Desktop Linux containers. Private configuration is read outside the checkout. Backend and frontend images use commit tags, and failed verification restores previous images while preserving the volume.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8" fill="#64748b"/></marker>
+    <style>
+      text{font-family:Segoe UI,Arial,sans-serif;fill:#172b45}.h{font-size:30px;font-weight:700}.sub{font-size:16px;fill:#52647b}.label{font-size:14px;fill:#52647b}.box{fill:#fff;stroke:#cbd5e1;stroke-width:2;rx:14}.blue{fill:#edf4ff;stroke:#82a9ea}.teal{fill:#ecfdf5;stroke:#64bfa8}.amber{fill:#fffbeb;stroke:#d8ad4a}.purple{fill:#f5f0ff;stroke:#b09adb}.heading{font-size:19px;font-weight:700}.body{font-size:16px}.line{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}.dash{stroke-dasharray:7 5}
+    </style>
+  </defs>
+  <rect width="1440" height="1080" fill="#f6f8fc"/>
+  <text x="44" y="54" class="h">RemediAI Copilot | Technical deployment + CI/CD</text>
+  <text x="44" y="83" class="sub">Hosted validation, trusted local deployment, external private configuration and persistent incident state</text>
+  <rect x="44" y="120" width="1352" height="247" rx="18" fill="#eef2f8" stroke="#b6c3d5"/>
+  <text x="66" y="151" class="heading">GITHUB / HOSTED CI</text>
+  <rect x="72" y="176" width="320" height="149" class="box blue"/>
+  <text x="94" y="209" class="heading">Private remedi-ai-copilot repo</text>
+  <text x="94" y="238" class="body">Push main / PR / manual dispatch</text>
+  <text x="94" y="265" class="body">Hashed lock + vendored ADK wheel</text>
+  <text x="94" y="293" class="label">Private ADK mirror retains source/license</text>
+  <rect x="458" y="176" width="480" height="149" class="box blue"/>
+  <text x="480" y="209" class="heading">Ubuntu CI runner</text>
+  <text x="480" y="238" class="body">Python 3.12 / Node 22.20 / Docker / Chromium</text>
+  <text x="480" y="265" class="body">Lint, 64 tests, pip check, artifact + dependency audits</text>
+  <text x="480" y="292" class="body">Frontend build, image build, fixture browser tests</text>
+  <path d="M392 250 H458" class="line"/>
+  <rect x="1004" y="176" width="364" height="149" class="box amber"/>
+  <text x="1026" y="209" class="heading">Deployment gate</text>
+  <text x="1026" y="238" class="body">CI passes + main + not a pull request</text>
+  <text x="1026" y="265" class="body">Serialize local deployment jobs</text>
+  <text x="1026" y="292" class="label">Live smoke: explicit manual opt-in</text>
+  <path d="M938 250 H1004" class="line"/>
+  <rect x="44" y="405" width="1352" height="615" rx="18" fill="#eef2f8" stroke="#b6c3d5" stroke-dasharray="8 5"/>
+  <text x="66" y="437" class="heading">WINDOWS LOCAL MACHINE</text>
+  <path d="M1186 325 V459" class="line"/>
+  <rect x="1004" y="459" width="364" height="147" class="box blue"/>
+  <text x="1026" y="492" class="heading">Self-hosted Windows runner</text>
+  <text x="1026" y="521" class="body">local-remedi-ai-copilot / PowerShell 5.1</text>
+  <text x="1026" y="548" class="body">Checkout tested commit; build SHA images</text>
+  <text x="1026" y="576" class="label">Host Docker CLI; no socket mounted in app</text>
+  <rect x="72" y="459" width="320" height="147" class="box amber"/>
+  <text x="94" y="492" class="heading">Private local configuration</text>
+  <text x="94" y="521" class="body">Local .env / no committed credentials</text>
+  <text x="94" y="548" class="body">App role tokens + Copilot credential</text>
+  <text x="94" y="576" class="label">Outside checkout; variable stores path only</text>
+  <rect x="458" y="459" width="480" height="147" class="box teal"/>
+  <text x="480" y="492" class="heading">Docker Compose deployment / rollback</text>
+  <text x="480" y="521" class="body">Preserve old image IDs; build commit-tagged images</text>
+  <text x="480" y="548" class="body">Wait for health; verify revision + live ADK contract</text>
+  <text x="480" y="575" class="body">Failure: restore prior images, preserve incident volume</text>
+  <path d="M1004 533 H938" class="line"/>
+  <path d="M392 533 H458" class="line dash"/>
+  <rect x="72" y="660" width="320" height="154" class="box blue"/>
+  <text x="94" y="693" class="heading">Browser on localhost:8082</text>
+  <text x="94" y="722" class="body">React 19 / TypeScript / Vite build</text>
+  <text x="94" y="749" class="body">Operator / owner workflow</text>
+  <text x="94" y="777" class="label">Single-identity pilot; not SSO</text>
+  <rect x="458" y="660" width="295" height="154" class="box teal"/>
+  <text x="480" y="693" class="heading">Frontend container</text>
+  <text x="480" y="722" class="body">Unprivileged nginx :8080</text>
+  <text x="480" y="749" class="body">Static React + /api proxy</text>
+  <text x="480" y="777" class="label">Host bind 127.0.0.1:8082</text>
+  <path d="M392 735 H458" class="line"/>
+  <rect x="819" y="660" width="321" height="154" class="box teal"/>
+  <text x="841" y="693" class="heading">Backend container :8000</text>
+  <text x="841" y="722" class="body">Private FastAPI / uvicorn, one worker</text>
+  <text x="841" y="749" class="body">ADK + Copilot SDK / managed runtime</text>
+  <text x="841" y="777" class="label">ADK 2.12.0+remedi.1 / OTel 1.45.1</text>
+  <path d="M753 735 H819" class="line"/>
+  <text x="768" y="721" class="label">HTTP</text>
+  <path d="M698 606 V660" class="line"/>
+  <rect x="1180" y="660" width="188" height="154" class="box purple"/>
+  <text x="1198" y="693" class="heading">GitHub Copilot</text>
+  <text x="1198" y="722" class="body">HTTPS egress</text>
+  <text x="1198" y="749" class="body">claude-sonnet-5</text>
+  <text x="1198" y="777" class="label">External service</text>
+  <path d="M1140 735 H1180" class="line"/>
+  <rect x="819" y="870" width="321" height="111" class="box teal"/>
+  <text x="841" y="902" class="heading">Named incident-data volume</text>
+  <text x="841" y="931" class="body">/data/remedi-copilot.db + runtime state</text>
+  <text x="841" y="957" class="label">Not deleted by deployment or image rollback</text>
+  <path d="M980 814 V870" class="line"/>
+  <rect x="72" y="870" width="681" height="111" class="box"/>
+  <text x="94" y="903" class="heading">Container isolation + verification</text>
+  <text x="94" y="932" class="body">Non-root users, read-only roots, tmpfs, dropped capabilities</text>
+  <text x="94" y="958" class="body">No new privileges; backend readiness + frontend health checks</text>
+  <text x="44" y="1054" class="sub">Image rollback is not database rollback. CI fixtures are not live inference. App containers never receive the host Docker socket.</text>
+</svg>

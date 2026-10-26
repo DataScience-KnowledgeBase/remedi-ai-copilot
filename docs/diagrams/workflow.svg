@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1390" viewBox="0 0 1440 1390" role="img" aria-labelledby="title desc">
+  <title id="title">RemediAI Copilot - governed incident workflow</title>
+  <desc id="desc">Authenticated synthetic incidents pass provider readiness and queue admission, bounded ADK triage and deterministic policy. Unsupported evidence escalates, dynamic recommendations receive an independent reviewer, and high-impact or uncertain changes await accountable owner approval. Execution rechecks policy, saves a checkpoint and simulates an allowlisted action. Three probes lead to closure or verified checkpoint restoration. Learning candidates require offline review.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8" fill="#64748b"/></marker>
+    <style>
+      text{font-family:Segoe UI,Arial,sans-serif;fill:#172b45}.h{font-size:30px;font-weight:700}.sub{font-size:16px;fill:#52647b}.label{font-size:14px;fill:#52647b}.box{fill:#fff;stroke:#cbd5e1;stroke-width:2;rx:14}.blue{fill:#edf4ff;stroke:#82a9ea}.teal{fill:#ecfdf5;stroke:#64bfa8}.amber{fill:#fffbeb;stroke:#d8ad4a}.purple{fill:#f5f0ff;stroke:#b09adb}.red{fill:#fff1f2;stroke:#d8959c}.heading{font-size:18px;font-weight:700}.body{font-size:16px}.line{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}.dash{stroke-dasharray:7 5}
+    </style>
+  </defs>
+  <rect width="1440" height="1390" fill="#f6f8fc"/>
+  <text x="44" y="54" class="h">RemediAI Copilot | Governed incident workflow</text>
+  <text x="44" y="83" class="sub">Automate only inside the approved risk boundary. Model recommendations never confer execution or approval authority.</text>
+  <rect x="474" y="120" width="492" height="86" class="box blue"/>
+  <text x="498" y="152" class="heading">01  Operator submits a synthetic incident</text>
+  <text x="498" y="180" class="body">Authentication, schema, idempotency and admission limits</text>
+  <path d="M720 206 V240" class="line"/>
+  <rect x="474" y="240" width="492" height="86" class="box"/>
+  <text x="498" y="272" class="heading">02  Provider ready? Admit to durable queue</text>
+  <text x="498" y="300" class="body">Copilot authenticated + configured model available</text>
+  <rect x="1032" y="240" width="364" height="86" class="box red"/>
+  <text x="1054" y="272" class="heading">503 / no queue admission</text>
+  <text x="1054" y="300" class="body">No demo or paid-provider fallback</text>
+  <path d="M966 283 H1032" class="line"/>
+  <text x="985" y="269" class="label">No</text>
+  <path d="M720 326 V363" class="line"/>
+  <text x="736" y="350" class="label">Yes</text>
+  <rect x="474" y="363" width="492" height="110" class="box purple"/>
+  <text x="498" y="395" class="heading">03  Bounded Google ADK triage</text>
+  <text x="498" y="423" class="body">Inspect metrics / read runbook / propose</text>
+  <text x="498" y="451" class="body">Fresh isolated SDK sessions; full local schema validation</text>
+  <path d="M720 473 V511" class="line"/>
+  <rect x="474" y="511" width="492" height="86" class="box amber"/>
+  <text x="498" y="543" class="heading">04  Deterministic evidence + action policy</text>
+  <text x="498" y="571" class="body">Observed citations, compatible action and safe boundary</text>
+  <rect x="44" y="511" width="364" height="86" class="box red"/>
+  <text x="66" y="543" class="heading">Escalate / no write</text>
+  <text x="66" y="571" class="body">Unsupported evidence or unsafe remedy</text>
+  <path d="M474 555 H408" class="line"/>
+  <path d="M720 597 V635" class="line"/>
+  <rect x="474" y="635" width="492" height="86" class="box purple"/>
+  <text x="498" y="667" class="heading">05  Dynamic case? Separate ADK reviewer</text>
+  <text x="498" y="695" class="body">Fresh invocation / same model; disagreement needs owner</text>
+  <path d="M720 721 V759" class="line"/>
+  <rect x="474" y="759" width="492" height="86" class="box amber"/>
+  <text x="498" y="791" class="heading">06  Auto-execution eligible?</text>
+  <text x="498" y="819" class="body">Low risk + confidence + valid review where applicable</text>
+  <rect x="1032" y="759" width="364" height="115" class="box amber"/>
+  <text x="1054" y="791" class="heading">Accountable owner decision</text>
+  <text x="1054" y="819" class="body">High impact, low confidence or disagreement</text>
+  <text x="1054" y="847" class="body">Approve exact plan / reject / remain pending</text>
+  <path d="M966 802 H1032" class="line"/>
+  <text x="982" y="786" class="label">No</text>
+  <path d="M720 845 V912" class="line"/>
+  <text x="736" y="885" class="label">Yes</text>
+  <rect x="474" y="912" width="492" height="86" class="box teal"/>
+  <text x="498" y="944" class="heading">07  Recheck policy + checkpoint + execute</text>
+  <text x="498" y="972" class="body">Allowlisted simulated cache / worker / capacity action</text>
+  <path d="M1100 874 V955 H966" class="line"/>
+  <text x="1114" y="920" class="label">Approved</text>
+  <rect x="1208" y="913" width="188" height="85" class="box red"/>
+  <text x="1226" y="945" class="heading">Rejected</text>
+  <text x="1226" y="973" class="body">No execution</text>
+  <path d="M1302 874 V913" class="line"/>
+  <text x="1315" y="900" class="label">Reject</text>
+  <path d="M720 998 V1037" class="line"/>
+  <rect x="474" y="1037" width="492" height="86" class="box teal"/>
+  <text x="498" y="1069" class="heading">08  Verify three independent health samples</text>
+  <text x="498" y="1097" class="body">Simulator probes determine outcome, not the model</text>
+  <rect x="1032" y="1037" width="364" height="86" class="box red"/>
+  <text x="1054" y="1069" class="heading">Failed verification</text>
+  <text x="1054" y="1097" class="body">Restore checkpoint / rolled_back / owner</text>
+  <path d="M966 1080 H1032" class="line"/>
+  <text x="984" y="1065" class="label">Fail</text>
+  <path d="M720 1123 V1162" class="line"/>
+  <text x="736" y="1148" class="label">Pass</text>
+  <rect x="474" y="1162" width="492" height="86" class="box teal"/>
+  <text x="498" y="1194" class="heading">09  Record outcome + learning candidate</text>
+  <text x="498" y="1222" class="body">Closed / rolled_back. Runbook changes need offline review.</text>
+  <path d="M1214 1123 V1284 H720 V1248" class="line dash"/>
+  <text x="924" y="1305" class="label">Rollback outcomes also recorded for learning</text>
+  <rect x="44" y="635" width="364" height="239" class="box"/>
+  <text x="66" y="669" class="heading">Fail-closed controls at every stage</text>
+  <text x="66" y="704" class="body">Provider, schema or review errors:</text>
+  <text x="66" y="731" class="body">mark failed; no inferred recovery.</text>
+  <text x="66" y="773" class="body">Approval is never generated by AI.</text>
+  <text x="66" y="800" class="body">Review is not independent expertise.</text>
+  <text x="66" y="827" class="body">Live inference != real infrastructure.</text>
+  <text x="66" y="854" class="label">All actions affect a synthetic simulator only.</text>
+  <text x="44" y="1360" class="sub">Aligns to AI_Remedy_1 / AI_Remedy_2: triage, approved risk boundary, human gate, execute, verify, rollback and learn.</text>
+</svg>

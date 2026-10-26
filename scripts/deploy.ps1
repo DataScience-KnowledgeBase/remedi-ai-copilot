@@ -1,7 +1,13 @@
 param(
     [Parameter(Mandatory = $true)][string]$EnvFile,
     [Parameter(Mandatory = $true)][ValidatePattern('^[a-f0-9]{40}$')][string]$ImageTag,
-    [switch]$LiveSmoke
+    [switch]$LiveSmoke,
+    [string]$KubernetesCredentialsDirectory = "",
+    [ValidatePattern('^remedi-[a-z0-9]([-a-z0-9]{0,48}[a-z0-9])?$')]
+    [string]$KubernetesNamespace = "remedi-demo",
+    [string]$GitHubPrivateKeyFile = "",
+    [long]$GitHubAppId = 0,
+    [long]$GitHubInstallationId = 0
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -10,6 +16,12 @@ if (-not [System.IO.Path]::IsPathRooted($EnvFile) -or -not (Test-Path -LiteralPa
 }
 $previousEnvFile = $env:REMEDI_ENV_FILE
 $previousTag = $env:REMEDI_IMAGE_TAG
+$previousComposeFile = $env:COMPOSE_FILE
+$previousCredentials = $env:REMEDI_KUBERNETES_CREDENTIALS_DIR
+$previousNamespace = $env:REMEDI_KUBERNETES_NAMESPACE
+$previousGitHubKey = $env:REMEDI_GITHUB_PRIVATE_KEY_FILE
+$previousAppId = $env:REMEDI_GITHUB_APP_ID
+$previousInstallationId = $env:REMEDI_GITHUB_INSTALLATION_ID
 $rollbackTag = "rollback-" + [Guid]::NewGuid().ToString("N")
 $previousImages = @{}
 $deploymentStarted = $false
@@ -17,6 +29,37 @@ Push-Location $root
 try {
     $env:REMEDI_ENV_FILE = $EnvFile
     $env:REMEDI_IMAGE_TAG = $ImageTag
+    if ($KubernetesCredentialsDirectory) {
+        if (-not [System.IO.Path]::IsPathRooted($KubernetesCredentialsDirectory)) {
+            throw "Kubernetes credentials directory must be an absolute private path."
+        }
+        foreach ($file in @("token", "ca.crt", "connection.env")) {
+            if (-not (Test-Path -LiteralPath (Join-Path $KubernetesCredentialsDirectory $file) -PathType Leaf)) {
+                throw "Missing Kubernetes credential file: $file. Run setup-kubernetes.ps1."
+            }
+        }
+        $env:COMPOSE_FILE = "compose.yaml;compose.kubernetes.yaml"
+        $env:REMEDI_KUBERNETES_CREDENTIALS_DIR = $KubernetesCredentialsDirectory
+        $env:REMEDI_KUBERNETES_NAMESPACE = $KubernetesNamespace
+    } else {
+        $env:COMPOSE_FILE = "compose.yaml"
+    }
+    if ($GitHubPrivateKeyFile) {
+        if (-not $KubernetesCredentialsDirectory -or $GitHubAppId -le 0 -or $GitHubInstallationId -le 0) {
+            throw "GitHub mode requires Kubernetes credentials and valid App/installation IDs."
+        }
+        if (-not [System.IO.Path]::IsPathRooted($GitHubPrivateKeyFile) -or -not (Test-Path -LiteralPath $GitHubPrivateKeyFile -PathType Leaf)) {
+            throw "GitHub private key must be an existing absolute private path outside the checkout."
+        }
+        $keyPath = (Resolve-Path -LiteralPath $GitHubPrivateKeyFile).Path
+        if ($keyPath.StartsWith($root + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "GitHub private key must not be inside the repository."
+        }
+        $env:COMPOSE_FILE += ";compose.github.yaml"
+        $env:REMEDI_GITHUB_PRIVATE_KEY_FILE = $keyPath
+        $env:REMEDI_GITHUB_APP_ID = [string]$GitHubAppId
+        $env:REMEDI_GITHUB_INSTALLATION_ID = [string]$GitHubInstallationId
+    }
     $engine = docker info --format '{{.OSType}}'
     if ($LASTEXITCODE -ne 0 -or $engine -ne "linux") { throw "Docker Desktop Linux engine is required." }
     docker compose config --quiet
@@ -59,6 +102,8 @@ try {
     }
     $smokeArguments = @()
     if ($LiveSmoke) { $smokeArguments += "--live" }
+    if ($KubernetesCredentialsDirectory) { $smokeArguments += "--kubernetes" }
+    if ($GitHubPrivateKeyFile) { $smokeArguments += "--github" }
     Get-Content -Raw (Join-Path $PSScriptRoot "smoke.py") |
         docker compose exec -T backend python - @smokeArguments
     if ($LASTEXITCODE -ne 0) { throw "Deployment smoke verification failed." }
@@ -80,5 +125,11 @@ try {
 } finally {
     $env:REMEDI_ENV_FILE = $previousEnvFile
     $env:REMEDI_IMAGE_TAG = $previousTag
+    $env:COMPOSE_FILE = $previousComposeFile
+    $env:REMEDI_KUBERNETES_CREDENTIALS_DIR = $previousCredentials
+    $env:REMEDI_KUBERNETES_NAMESPACE = $previousNamespace
+    $env:REMEDI_GITHUB_PRIVATE_KEY_FILE = $previousGitHubKey
+    $env:REMEDI_GITHUB_APP_ID = $previousAppId
+    $env:REMEDI_GITHUB_INSTALLATION_ID = $previousInstallationId
     Pop-Location
 }

@@ -9,6 +9,11 @@ This variant uses **Google ADK 2.12.0+remedi.1**, an approved private compatibil
 build with patched OpenTelemetry, and separate LLM review for dynamic
 cases. See [ADK and dynamic remediation](docs/ADK_DYNAMIC.md).
 
+**Opt-in real Kubernetes:** [Docker Desktop pod-event examples](docs/KUBERNETES.md)
+add live evidence, AI diagnosis/review, owner-approved bounded Deployment changes
+and streamed rollout/recovery progress in a dedicated namespace. The original
+eight scenarios still use the simulator; real cluster changes are never automatic.
+
 ## Important: subscription access is not a generic API key
 
 The supported request path is:
@@ -176,6 +181,14 @@ authenticated native inference, clear that variable, set `REMEDI_URL` to 8081 an
 `REMEDI_EXPECTED_PROVIDER=copilot`. Do not label demo browser results as Copilot quality.
 
 ## Documentation and evidence
+
+- [Owner approval → GitHub PR → manual merge → verified deployment](docs/GITHUB_REMEDIATION.md)
+- [Real Kubernetes pod-event examples, owner approval and live progress](docs/KUBERNETES.md)
+- [Application user guide with UI walkthroughs and PowerShell API examples](docs/USER_GUIDE.md)
+- [Browser-friendly user guide](docs/USER_GUIDE.html) | [Printable user guide (PDF)](docs/USER_GUIDE.pdf)
+
+- [Architecture, technical deployment and workflow diagrams](docs/diagrams/index.html)
+- [Editable Mermaid diagram sources](docs/diagrams/diagrams.md)
 
 - [Architecture, isolation and production release gates](docs/ARCHITECTURE.md)
 - [Authentication, billing, security and observability](docs/AUTH_AND_OPERATIONS.md)

@@ -33,9 +33,59 @@ class Settings(BaseSettings):
     max_active_incidents: int = 25
     requests_per_minute: int = 120
     confidence_threshold: float = 0.85
+    kubernetes_enabled: bool = False
+    kubernetes_namespace: str = "remedi-demo"
+    kubernetes_api_url: str = "https://kubernetes.docker.internal:6443"
+    kubernetes_tls_server_name: str = ""
+    kubernetes_ca_file: str = "/run/kubernetes/ca.crt"
+    kubernetes_token_file: str = "/run/kubernetes/token"
+    kubernetes_rollout_timeout_seconds: int = 120
+    kubernetes_probe_interval_seconds: float = 2.0
+    github_gitops_enabled: bool = False
+    github_repository: str = "DataScience-KnowledgeBase/remedi-ai-copilot"
+    github_app_id: int = 0
+    github_installation_id: int = 0
+    github_private_key_file: str = "/run/github/app.pem"
 
     @model_validator(mode="after")
     def validate_settings(self) -> "Settings":
+        if self.github_gitops_enabled:
+            if not self.kubernetes_enabled:
+                raise ValueError("GitHub manifest deployment requires Kubernetes integration")
+            if min(self.github_app_id, self.github_installation_id) <= 0:
+                raise ValueError("GitHub App and installation IDs must be configured")
+            if self.github_repository != "DataScience-KnowledgeBase/remedi-ai-copilot":
+                raise ValueError("GitHub automation is restricted to the approved repository")
+        if self.kubernetes_enabled:
+            import re
+
+            if self.provider == "demo":
+                raise ValueError("Real Kubernetes integration requires a real inference provider")
+            if not re.fullmatch(
+                r"remedi-[a-z0-9](?:[-a-z0-9]{0,48}[a-z0-9])?",
+                self.kubernetes_namespace,
+            ):
+                raise ValueError("Kubernetes namespace must be a dedicated remedi-* namespace")
+            endpoint = urlparse(self.kubernetes_api_url)
+            if (
+                endpoint.scheme != "https"
+                or not endpoint.hostname
+                or endpoint.username
+                or endpoint.password
+                or endpoint.query
+                or endpoint.fragment
+                or endpoint.path not in {"", "/"}
+            ):
+                raise ValueError("Kubernetes API must be a credential-free HTTPS origin")
+            if self.kubernetes_tls_server_name and not re.fullmatch(
+                r"[a-zA-Z0-9.:-]+",
+                self.kubernetes_tls_server_name,
+            ):
+                raise ValueError("Kubernetes TLS server name must be a hostname or IP")
+            if not 10 <= self.kubernetes_rollout_timeout_seconds <= 600:
+                raise ValueError("Kubernetes rollout timeout must be between 10 and 600 seconds")
+            if not 0.1 <= self.kubernetes_probe_interval_seconds <= 10:
+                raise ValueError("Kubernetes probe interval must be between 0.1 and 10 seconds")
         tokens = [self.operator_token.get_secret_value(), self.owner_token.get_secret_value()]
         if any(len(token) < 32 for token in tokens) or tokens[0] == tokens[1]:
             raise ValueError(
