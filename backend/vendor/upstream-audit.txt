@@ -1,0 +1,3 @@
+# Audit the unchanged upstream runtime base separately from its private local version.
+# All installed transitive dependencies are additionally checked by pip-audit --local.
+google-adk==2.12.0

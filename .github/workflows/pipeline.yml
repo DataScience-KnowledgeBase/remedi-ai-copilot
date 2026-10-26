@@ -1,0 +1,112 @@
+name: CI and local Docker deployment
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      live_smoke:
+        description: Run one synthetic live Copilot incident (consumes subscription allowance)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remedi-copilot-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Lint, tests, audits and browser workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.20.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Restore locked runtime and development tools
+        run: |
+          python -m pip install --find-links backend/vendor --require-hashes -r backend/requirements.lock
+          python -m pip install -e './backend[dev]'
+      - name: Backend and pipeline checks
+        run: |
+          ruff check backend/app backend/tests scripts/smoke.py scripts/verify_vendor.py
+          python scripts/verify_vendor.py
+          python -m pip check
+          python -m pytest backend/tests -q
+          python -m pip_audit --local
+          python -m pip_audit --no-deps --disable-pip -r backend/vendor/upstream-audit.txt
+      - name: Frontend build and dependency audit
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npm audit --audit-level=high
+          npx playwright install --with-deps chromium
+      - name: Create disposable fixture configuration
+        run: |
+          python - <<'PY'
+          import secrets
+          from pathlib import Path
+          Path(".env").write_text(
+              "OPERATOR_TOKEN=" + secrets.token_hex(32) + "\n"
+              "OWNER_TOKEN=" + secrets.token_hex(32) + "\n"
+              "PROVIDER=demo\nCOPILOT_ALLOW_EGRESS=false\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Build images and start isolated fixture stack
+        run: |
+          docker compose -f compose.yaml -f compose.demo.yaml config --quiet
+          docker compose -f compose.yaml -f compose.demo.yaml up -d --build --wait --wait-timeout 180
+      - name: Browser end-to-end governance tests (fixtures, not live inference)
+        working-directory: frontend
+        env:
+          REMEDI_URL: http://127.0.0.1:8082
+          REMEDI_EXPECTED_PROVIDER: demo
+        run: npm test
+      - name: Stop disposable CI stack
+        if: always()
+        run: |
+          if [ -f .env ]; then
+            docker compose -f compose.yaml -f compose.demo.yaml down
+            rm .env
+          fi
+
+  deploy:
+    name: Deploy tested commit to local Docker
+    needs: ci
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, X64, local-docker, remedi-ai-copilot]
+    timeout-minutes: 30
+    concurrency:
+      group: remedi-copilot-local-deployment
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build, deploy and verify
+        env:
+          REMEDI_LOCAL_ENV_FILE: ${{ vars.REMEDI_LOCAL_ENV_FILE }}
+          REMEDI_LIVE_SMOKE: ${{ github.event_name == 'workflow_dispatch' && inputs.live_smoke }}
+        run: |
+          if (-not $env:REMEDI_LOCAL_ENV_FILE) {
+            throw "Set repository variable REMEDI_LOCAL_ENV_FILE to the private config path on the runner."
+          }
+          .\scripts\deploy.ps1 -EnvFile $env:REMEDI_LOCAL_ENV_FILE -ImageTag $env:GITHUB_SHA -LiveSmoke:($env:REMEDI_LIVE_SMOKE -eq "true")

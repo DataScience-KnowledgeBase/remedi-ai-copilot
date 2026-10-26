@@ -9,7 +9,7 @@ try {
     $python = Join-Path $root "backend\.venv\Scripts\python.exe"
     & $python -m pip install --upgrade pip==26.2.2
     if ($LASTEXITCODE -ne 0) { throw "Updating isolated pip failed." }
-    & $python -m pip install --require-hashes -r backend\requirements.lock
+    & $python -m pip install --find-links backend\vendor --require-hashes -r backend\requirements.lock
     if ($LASTEXITCODE -ne 0) { throw "Runtime dependency restore failed." }
     & $python -m pip install --no-deps -e backend
     if ($LASTEXITCODE -ne 0) { throw "Application install failed." }

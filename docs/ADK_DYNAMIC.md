@@ -75,9 +75,12 @@ not establish billing completeness for failed requests.
 
 ## Dependencies, CI/CD and production limits
 
-ADK 2.12.0 and FastAPI 0.140.0 form a deliberately compatible dependency set:
-ADK caps OpenTelemetry at 1.42.1 while newer examined FastAPI versions require
->=1.44. Restore the hashed lock, then install the editable project separately;
+The approved private ADK `2.12.0+remedi.1` build changes only its version and
+OpenTelemetry dependency bounds to admit patched API/SDK `>=1.45.1,<1.46`.
+Upstream ADK 2.12.0 caps OpenTelemetry below the security fix. This is not an
+official Google release; source provenance and wheel hashes are retained in
+`backend/vendor`. Restore the hashed lock with `--find-links backend/vendor`,
+then install the editable project separately;
 do not combine an editable install with a hashed constraints file.
 
 The platform repository includes matrix CI, dependency audits, explicit fixture

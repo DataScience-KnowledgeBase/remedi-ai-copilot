@@ -3,9 +3,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /srv
 COPY backend/pyproject.toml ./
 COPY backend/requirements.lock ./
+COPY backend/vendor ./vendor
 COPY backend/app ./app
 RUN pip install --no-cache-dir --upgrade pip==26.2.2 && \
-    pip install --no-cache-dir --require-hashes -r requirements.lock && \
+    pip install --no-cache-dir --find-links=vendor --require-hashes -r requirements.lock && \
     pip install --no-cache-dir --no-deps . && \
     groupadd --gid 10001 remedi && \
     useradd --uid 10001 --gid remedi --create-home remedi && \

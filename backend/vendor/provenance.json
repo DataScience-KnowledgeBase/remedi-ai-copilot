@@ -1,0 +1,19 @@
+{
+  "distribution": "google-adk",
+  "version": "2.12.0+remedi.1",
+  "wheel": "google_adk-2.12.0+remedi.1-py3-none-any.whl",
+  "sha256": "64635db9c1af8f6debd5ca19e365f8efe3c23b1fc15ef1e3d0be77e7d6ba83cb",
+  "license": "Apache-2.0",
+  "upstream_repository": "https://github.com/google/adk-python",
+  "upstream_tag": "v2.12.0",
+  "upstream_version": "2.12.0",
+  "upstream_commit": "38381f65f2bee0f70a89f938ee64e51b34916fa7",
+  "private_repository": "https://github.com/DataScience-KnowledgeBase/google-adk-remedi",
+  "private_commit": "ec03a52455134266920c3a23d04915ed25a52a25",
+  "changes": [
+    "Distribution/runtime version changed to 2.12.0+remedi.1",
+    "OpenTelemetry API/SDK dependency bounds changed to >=1.45.1,<1.46"
+  ],
+  "runtime_logic_changes": false,
+  "advisory": "GHSA-xcq7-p3pf-p88h"
+}

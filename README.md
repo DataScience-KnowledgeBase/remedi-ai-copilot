@@ -5,7 +5,8 @@ the React UI, Google ADK bounded ReAct workflow, deterministic policy, approvals
 execution, recovery verification, rollback, audit and observability. It replaces
 the GPU inference dependency with the **official GitHub Copilot Python SDK**.
 The GPU and Copilot variants keep independent credentials, models and databases.
-Both now use **Google ADK 2.12.0** orchestration and separate LLM review for dynamic
+This variant uses **Google ADK 2.12.0+remedi.1**, an approved private compatibility
+build with patched OpenTelemetry, and separate LLM review for dynamic
 cases. See [ADK and dynamic remediation](docs/ADK_DYNAMIC.md).
 
 ## Important: subscription access is not a generic API key
@@ -92,6 +93,9 @@ See [architecture and release gates](docs/ARCHITECTURE.md).
 
 ## Docker
 
+For automated validation and deployment through the registered Windows runner,
+see [GitHub Actions and local Docker deployment](docs/CICD.md).
+
 Docker has a **separate authentication context** from Windows keychain/CLI sign-in.
 No host credential directories are copied or mounted into the image.
 
@@ -144,8 +148,8 @@ No automatic Copilot-to-paid-API fallback is permitted.
 Install optional development tools into the isolated environment:
 
 ```powershell
-.\backend\.venv\Scripts\python.exe -m pip install --require-hashes -r backend\requirements.lock
-.\backend\.venv\Scripts\python.exe -m pip install -e ".\backend[dev]"
+.\backend\.venv\Scripts\python.exe -m pip install --find-links backend\vendor --require-hashes -r backend\requirements.lock
+.\backend\.venv\Scripts\python.exe -m pip install --find-links backend\vendor -e ".\backend[dev]"
 .\scripts\validate.ps1
 .\backend\.venv\Scripts\python.exe -m app.evaluate --providers demo copilot --repeats 2 --output reports\comparison.json
 ```
