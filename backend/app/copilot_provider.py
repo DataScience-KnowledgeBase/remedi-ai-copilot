@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+from copy import deepcopy
 from pathlib import Path
 
 from copilot import CopilotClient
@@ -24,6 +25,28 @@ log = logging.getLogger("remedi.copilot")
 
 def deny_permission(_request: PermissionRequest, _invocation: PermissionInvocation):
     return PermissionDeniedByRules(rules=[])
+
+
+def transport_schema(schema: dict, model: str) -> dict:
+    if not model.startswith("claude-"):
+        return schema
+    result = deepcopy(schema)
+    unsupported = {
+        "number": ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf"),
+        "string": ("minLength", "maxLength"),
+        "array": ("maxItems",),
+    }
+    for field in result["properties"].values():
+        constraints = {}
+        for key in unsupported.get(field.get("type"), ()):
+            if key in field:
+                constraints[key] = field.pop(key)
+        if constraints:
+            description = field.get("description", "")
+            field["description"] = (
+                f"{description} Locally enforced constraints: {json.dumps(constraints)}"
+            ).strip()
+    return result
 
 
 class CopilotInference:
@@ -137,7 +160,7 @@ class CopilotInference:
                     try:
                         reply = await session.send_and_wait(
                             json.dumps(context),
-                            response_schema=schema,
+                            response_schema=transport_schema(schema, self.settings.copilot_model),
                             timeout=self.settings.llm_timeout_seconds,
                         )
                     finally:

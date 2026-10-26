@@ -48,10 +48,11 @@ invocations, missing review, uncertainty/disagreement/failure, owner gates, repl
 causal recovery and checkpoint restoration. Fixture inference is labeled `demo`
 and is not live LLM quality.
 
-Copilot live inference remains blocked by supported account authentication in this
-application's isolated runtime. No successful subscription inference or Copilot
-quality/latency/cost comparison is claimed. Native login does not authenticate
-the separate Linux container. Use the supported scripts:
+The original comparison baseline was blocked by account authentication and is not
+live inference evidence. Current environment readiness and live inference must be
+verified separately through the CI/CD checks described in `CICD.md`; no
+quality/latency/cost benchmark is inferred from a smoke test. Native login does
+not authenticate the separate Linux container. For native operation use:
 
 ```powershell
 .\scripts\copilot-login.ps1

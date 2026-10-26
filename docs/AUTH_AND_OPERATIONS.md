@@ -52,6 +52,14 @@ or subscription-level hard billing enforcement.
 
 ## Lifecycle and failure handling
 
+Claude structured outputs do not accept numeric bounds, string-length bounds or
+array maximum lengths in the wire schema. For `claude-*` models, the adapter moves
+those flat AgentStep field constraints into descriptions before sending. Required
+fields, types, enums and forbidden extra properties remain in the wire schema.
+Every returned message is still validated against the original Pydantic model
+and original workflow-phase enums before use. Invalid responses fail closed;
+there is no relaxation of risk policy, automatic retry or provider substitution.
+
 Only one backend worker is supported. Queued/approved incidents are durable;
 interrupted in-flight work fails closed for owner investigation instead of replaying
 potentially applied writes. Model errors never become successful simulated actions.

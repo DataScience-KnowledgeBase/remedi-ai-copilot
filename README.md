@@ -24,9 +24,11 @@ Your account must sign in using the supported OAuth flow, be entitled to Copilot
 and allow the selected model under organization policy. Subscription/AI-credit
 limits and current GitHub terms apply. It is not an unlimited/free token API.
 
-**Current validation:** application, Docker runtime, contract tests and demo browser
-workflow work. The supported live auth probe reports **signed out**. No successful
-subscription-backed inference is claimed. See [measured status](docs/VALIDATION.md).
+**Validation:** contract tests and demo browser workflows are separate from live
+inference. Readiness checks account authentication and configured-model access;
+the optional live CI/CD smoke must pass before claiming subscription-backed
+inference. See [CI/CD evidence and verification](docs/CICD.md) and the
+[historical baseline](docs/VALIDATION.md).
 
 ## Quick start using your own Copilot subscription (recommended local pilot)
 

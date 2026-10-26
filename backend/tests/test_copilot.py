@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -8,7 +9,7 @@ from copilot.session_events import AssistantMessageData, AssistantUsageData
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.copilot_provider import CopilotInference, deny_permission
+from app.copilot_provider import CopilotInference, deny_permission, transport_schema
 from app.main import create_app
 from app.providers import Provider, ProviderError, completion_metadata, phase_schema
 from tests.test_workflow import OPERATOR, OWNER
@@ -174,6 +175,55 @@ async def test_phase_rejection_and_timeout_cleanup(config, sdk):
             await provider.complete(CONTEXT)
         assert session.send_and_wait.await_count == 2  # No automatic paid-call retries.
         assert session.abort.await_count == 2
+    finally:
+        await provider.close()
+
+
+def test_claude_transport_schema_preserves_local_contract_and_phase_enums():
+    schema = phase_schema(CONTEXT)
+    original = deepcopy(schema)
+    adapted = transport_schema(schema, "claude-sonnet-5")
+    assert schema == original
+    assert adapted["required"] == schema["required"]
+    assert adapted["additionalProperties"] is False
+    assert adapted["properties"]["tool"] == schema["properties"]["tool"]
+    assert adapted["properties"]["action"] == schema["properties"]["action"]
+    assert "maximum" not in adapted["properties"]["confidence"]
+    assert "minimum" not in adapted["properties"]["confidence"]
+    assert "maxLength" not in adapted["properties"]["summary"]
+    assert "minLength" not in adapted["properties"]["summary"]
+    assert "maxItems" not in adapted["properties"]["evidence_ids"]
+    assert "Locally enforced constraints" in adapted["properties"]["confidence"]["description"]
+    assert transport_schema(schema, "gpt-4.1") == original
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"confidence": -0.1},
+        {"confidence": 1.1},
+        {"summary": ""},
+        {"summary": "x" * 601},
+        {"evidence_ids": ["id"] * 6},
+        {"tool": "propose"},
+        {"action": "delete_service"},
+    ],
+)
+async def test_claude_responses_still_fail_original_validation(config, sdk, invalid):
+    client, session, _ = sdk
+    config.copilot_model = "claude-sonnet-5"
+    client.list_models.return_value = [SimpleNamespace(id=config.copilot_model)]
+    session.send_and_wait.return_value.data.content = json.dumps({**STEP, **invalid})
+    provider = Provider(config)
+    try:
+        with pytest.raises(ProviderError):
+            await provider.complete(CONTEXT)
+        session.send_and_wait.assert_awaited_once()
+        assert session.send_and_wait.call_args.kwargs["response_schema"] == transport_schema(
+            phase_schema(CONTEXT), config.copilot_model
+        )
+        session.abort.assert_awaited_once()
+        session.disconnect.assert_awaited_once()
     finally:
         await provider.close()
 
