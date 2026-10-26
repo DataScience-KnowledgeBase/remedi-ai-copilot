@@ -10,7 +10,9 @@ validate_evidence = smoke["validate_evidence"]
 
 @pytest.fixture
 def evidence():
-    incident = {"status": "closed", "provider": "copilot", "model": "test-model"}
+    incident = {
+        "id": "test-incident", "status": "closed", "provider": "copilot", "model": "test-model",
+    }
     events = [
         {"stage": stage, "payload": {}}
         for stage in ("triage", "adk", "observe", "decision", "execute", "verify", "learn")

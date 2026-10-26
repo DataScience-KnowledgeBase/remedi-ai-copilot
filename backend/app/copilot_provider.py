@@ -15,6 +15,8 @@ from copilot.session_events import (
     PermissionRequest,
     SessionEvent,
 )
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError as SchemaValidationError
 
 from app.config import Settings
 from app.domain import AgentStep
@@ -34,12 +36,14 @@ def transport_schema(schema: dict, model: str) -> dict:
     unsupported = {
         "number": ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf"),
         "string": ("minLength", "maxLength"),
-        "array": ("maxItems",),
+        "array": ("maxItems", "minItems"),
     }
     for field in result["properties"].values():
         constraints = {}
         for key in unsupported.get(field.get("type"), ()):
             if key in field:
+                if key == "minItems" and field[key] in (0, 1):
+                    continue
                 constraints[key] = field.pop(key)
         if constraints:
             description = field.get("description", "")
@@ -184,11 +188,12 @@ class CopilotInference:
             if reply is None or not isinstance(reply.data, AssistantMessageData):
                 raise ProviderError("Copilot returned no final assistant message")
             step = AgentStep.model_validate_json(reply.data.content)
-            if (
-                step.tool not in schema["properties"]["tool"]["enum"]
-                or step.action not in schema["properties"]["action"]["enum"]
-            ):
-                raise ProviderError("Copilot response violates the current workflow phase")
+            try:
+                Draft202012Validator(schema).validate(step.model_dump())
+            except SchemaValidationError:
+                raise ProviderError(
+                    "Copilot response violates the current workflow schema"
+                ) from None
             inputs = (
                 sum(item.input_tokens for item in usage if item.input_tokens is not None)
                 if usage and all(item.input_tokens is not None for item in usage)

@@ -197,6 +197,51 @@ def test_claude_transport_schema_preserves_local_contract_and_phase_enums():
     assert transport_schema(schema, "gpt-4.1") == original
 
 
+def test_claude_proposal_citation_minimum_is_transport_only():
+    context = {
+        **CONTEXT,
+        "observations": [{"id": "EV-METRICS-01"}, {"id": "RB-CACHE-01"}],
+    }
+    schema = phase_schema(context)
+    assert schema["properties"]["evidence_ids"]["minItems"] == 2
+    adapted = transport_schema(schema, "claude-sonnet-5")
+    assert "minItems" not in adapted["properties"]["evidence_ids"]
+    assert schema["properties"]["evidence_ids"]["minItems"] == 2
+    assert adapted["properties"]["evidence_ids"]["items"] == (
+        schema["properties"]["evidence_ids"]["items"]
+    )
+    schema["properties"]["evidence_ids"]["minItems"] = 1
+    adapted = transport_schema(schema, "claude-sonnet-5")
+    assert adapted["properties"]["evidence_ids"]["minItems"] == 1
+
+
+@pytest.mark.parametrize(
+    "citations",
+    [[], ["EV-METRICS-01"], ["EV-METRICS-01", "unobserved"]],
+)
+async def test_claude_proposal_enforces_original_phase_citations(config, sdk, citations):
+    client, session, _ = sdk
+    config.copilot_model = "claude-sonnet-5"
+    client.list_models.return_value = [SimpleNamespace(id=config.copilot_model)]
+    context = {
+        **CONTEXT,
+        "observations": [{"id": "EV-METRICS-01"}, {"id": "RB-CACHE-01"}],
+    }
+    session.send_and_wait.return_value.data.content = json.dumps({
+        **STEP,
+        "tool": "propose",
+        "action": "clear_cache",
+        "evidence_ids": citations,
+    })
+    provider = Provider(config)
+    try:
+        with pytest.raises(ProviderError, match="workflow schema"):
+            await provider.complete(context)
+        session.send_and_wait.assert_awaited_once()
+    finally:
+        await provider.close()
+
+
 @pytest.mark.parametrize(
     "invalid",
     [

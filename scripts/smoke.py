@@ -32,7 +32,10 @@ def request(path, *, token="", body=None, key=""):
 
 def validate_evidence(incident, events):
     if incident["status"] != "closed" or incident["provider"] != "copilot":
-        raise RuntimeError("Live incident did not close through Copilot.")
+        raise RuntimeError(
+            f"Live incident {incident['id']} did not close through Copilot "
+            f"(status={incident['status']}, provider={incident['provider']})."
+        )
     required = {"triage", "adk", "observe", "decision", "execute", "verify", "close", "learn"}
     if not required.issubset({event["stage"] for event in events}):
         raise RuntimeError("Live audit is missing required governance stages.")
