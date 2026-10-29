@@ -1,5 +1,15 @@
 # Authentication, billing and operations
 
+## Opt-in Kubernetes access
+
+[Real Kubernetes operations](KUBERNETES.md) use a separate short-lived
+namespace-scoped service-account token, not the operator/owner tokens, Copilot
+credential or administrator kubeconfig. Owner approval is mandatory for every
+real change. Selected real pod/event/configuration evidence is sent to the model;
+review those data-sharing boundaries before enabling the integration.
+Token expiry, TLS/network failures and stale approvals stop explicitly.
+Progress and rollout samples are durable audit events, not estimated percentages.
+
 ## Supported subscription sign-in
 
 The official SDK supports signed-in Copilot users and documented server credentials.

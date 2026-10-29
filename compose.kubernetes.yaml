@@ -1,0 +1,15 @@
+services:
+  backend:
+    env_file:
+      - ${REMEDI_ENV_FILE:-.env}
+      - ${REMEDI_KUBERNETES_CREDENTIALS_DIR:-./.runtime/kubernetes}/connection.env
+    environment:
+      KUBERNETES_ENABLED: "true"
+      KUBERNETES_NAMESPACE: ${REMEDI_KUBERNETES_NAMESPACE:-remedi-demo}
+      KUBERNETES_CA_FILE: /run/kubernetes/ca.crt
+      KUBERNETES_TOKEN_FILE: /run/kubernetes/token
+    volumes:
+      - type: bind
+        source: ${REMEDI_KUBERNETES_CREDENTIALS_DIR:-./.runtime/kubernetes}
+        target: /run/kubernetes
+        read_only: true

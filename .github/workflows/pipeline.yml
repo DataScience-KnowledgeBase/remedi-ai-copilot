@@ -24,10 +24,27 @@ jobs:
     name: Lint, tests, audits and browser workflow
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      application_changed: ${{ steps.scope.outputs.application_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 2
+      - name: Classify application versus manifest-only changes
+        id: scope
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import subprocess
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", "HEAD^", "HEAD"], text=True
+          ).splitlines()
+          application = any(path != "kubernetes/examples.yaml" for path in changed)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"application_changed={str(application).lower()}\n")
+          PY
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -88,7 +105,7 @@ jobs:
   deploy:
     name: Deploy tested commit to local Docker
     needs: ci
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (needs.ci.outputs.application_changed == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: [self-hosted, Windows, X64, local-docker, remedi-ai-copilot]
     timeout-minutes: 30
     concurrency:
@@ -105,8 +122,20 @@ jobs:
         env:
           REMEDI_LOCAL_ENV_FILE: ${{ vars.REMEDI_LOCAL_ENV_FILE }}
           REMEDI_LIVE_SMOKE: ${{ github.event_name == 'workflow_dispatch' && inputs.live_smoke }}
+          REMEDI_KUBERNETES_CREDENTIALS_DIR: ${{ vars.REMEDI_KUBERNETES_CREDENTIALS_DIR }}
+          REMEDI_GITHUB_PRIVATE_KEY_FILE: ${{ vars.REMEDI_GITHUB_PRIVATE_KEY_FILE }}
+          REMEDI_GITHUB_APP_ID: ${{ vars.REMEDI_GITHUB_APP_ID }}
+          REMEDI_GITHUB_INSTALLATION_ID: ${{ vars.REMEDI_GITHUB_INSTALLATION_ID }}
         run: |
           if (-not $env:REMEDI_LOCAL_ENV_FILE) {
             throw "Set repository variable REMEDI_LOCAL_ENV_FILE to the private config path on the runner."
           }
-          .\scripts\deploy.ps1 -EnvFile $env:REMEDI_LOCAL_ENV_FILE -ImageTag $env:GITHUB_SHA -LiveSmoke:($env:REMEDI_LIVE_SMOKE -eq "true")
+          $github = @{}
+          if ($env:REMEDI_GITHUB_PRIVATE_KEY_FILE) {
+            $github = @{
+              GitHubPrivateKeyFile = $env:REMEDI_GITHUB_PRIVATE_KEY_FILE
+              GitHubAppId = [long]$env:REMEDI_GITHUB_APP_ID
+              GitHubInstallationId = [long]$env:REMEDI_GITHUB_INSTALLATION_ID
+            }
+          }
+          .\scripts\deploy.ps1 -EnvFile $env:REMEDI_LOCAL_ENV_FILE -ImageTag $env:GITHUB_SHA -LiveSmoke:($env:REMEDI_LIVE_SMOKE -eq "true") -KubernetesCredentialsDirectory $env:REMEDI_KUBERNETES_CREDENTIALS_DIR @github

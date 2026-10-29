@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RemediAI Copilot - Kubernetes</title>
+<link rel="stylesheet" href="user-guide.css">
+</head>
+<body>
+<main class="document">
+<h1 id="real-kubernetes-pod-event-examples">Real Kubernetes pod-event examples</h1>
+<p><strong>Repository-backed mode:</strong> add the explicit GitHub overlay described in
+<a href="GITHUB_REMEDIATION.md">Owner-approved repository remediation</a> to replace the
+direct-patch owner action below with a reviewed manifest PR, manual human merge
+and merge-commit CI gate. In that mode the button is <strong>Approve &amp; create PR</strong>,
+and old proposals without repository evidence cannot be approved.</p>
+<p>This opt-in integration targets Docker Desktop Kubernetes in the dedicated
+<code>remedi-demo</code> namespace. The original eight scenarios remain simulated.
+The four <code>k8s_*</code> scenarios read actual pod states, container terminations,
+Deployment/ReplicaSet ownership and Kubernetes events. They do not invent events.</p>
+<p>Google ADK invokes read-only evidence/runbook tools through the existing Copilot
+bridge. A fresh model invocation reviews the proposal. Diagnosis is not a
+scenario-to-action lookup: neither an expected action nor a synthetic diagnostic
+story is sent to the model. Unsupported or ambiguous causes can escalate.
+Safety remains deterministic: AI cannot supply commands, patches, URLs or manifests.</p>
+<h2 id="authorized-boundaries">Authorized boundaries</h2>
+<ul>
+<li>Every real remediation requires an owner approval of the exact persisted
+proposal and field checkpoint, even when confidence and review agree.</li>
+<li>Only four explicitly named, labeled, single-container demo Deployments can be
+patched. Workloads outside this namespace are inaccessible to the service account.</li>
+<li>The account can get/patch those Deployments and get/list namespace pods,
+ReplicaSets and events. It cannot read Secrets, execute in pods, delete resources,
+create workloads, change RBAC or access other namespaces.</li>
+<li>The operator/admin creates deliberately failing examples separately.
+Pressing <strong>Diagnose live pods</strong> only requests diagnosis; it does not inject failures.</li>
+<li>Evidence sent to Copilot includes event messages, pod/container states and selected
+configuration fields. No pod logs, environment dumps, Secrets or kubeconfig are
+collected. Treat operational evidence as potentially sensitive and untrusted.</li>
+<li>This is a bounded local demo, not a general production Kubernetes auto-healer.
+Shared operator/owner role tokens do not provide independently attributed human identity.</li>
+</ul>
+<h2 id="provision-the-examples">Provision the examples</h2>
+<p>Docker Desktop Kubernetes must be running and <code>docker-desktop</code> must be reachable:</p>
+<pre><code class="language-powershell">kubectl --context docker-desktop get nodes
+.\scripts\setup-kubernetes.ps1 -Namespace remedi-demo -CreateExamples
+</code></pre>
+<p>Run from the project root. This creates the namespace if absent, the service
+account/Role/RoleBinding, and four Deployments. It refuses to reset existing
+managed examples. Review the manifests before running. No services or ingress
+are exposed. Each example requests 10m CPU and 16Mi memory, with a 100m CPU
+limit and an initial 32Mi memory limit. Images require Docker Hub access.</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Live failure</th>
+<th>Bounded change proposed when evidence supports it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>k8s_crashloop</code></td>
+<td>Demo CRASH flag causes startup exit, BackOff/CrashLoopBackOff</td>
+<td>Change only the demo <code>CRASH</code> value from <code>true</code> to <code>false</code></td>
+</tr>
+<tr>
+<td><code>k8s_oom</code></td>
+<td>Allocate 64Mi under a 32Mi limit; actual last termination is OOMKilled</td>
+<td>Change only the memory limit from 32Mi to 128Mi</td>
+</tr>
+<tr>
+<td><code>k8s_imagepull</code></td>
+<td>Known missing <code>python:remedi-missing-demo</code> tag produces ErrImagePull/ImagePullBackOff</td>
+<td>Replace only that image with <code>python:3.12-alpine</code></td>
+</tr>
+<tr>
+<td><code>k8s_pending</code></td>
+<td>Impossible <code>remedi.demo/unavailable=true</code> selector produces FailedScheduling</td>
+<td>Remove only that selector key</td>
+</tr>
+</tbody>
+</table>
+<p>The example images are public tags, not production supply-chain pins. The memory
+action changes a Deployment limit, not node capacity. OOMKilled is a container
+termination reason and may appear while the current pod status is CrashLoopBackOff.
+Do not diagnose until the relevant real evidence has appeared.</p>
+<h3 id="credentials-and-docker">Credentials and Docker</h3>
+<p>Setup requests a short-lived service-account token (24 hours; the API server can
+shorten this) and writes it and the cluster CA into ignored <code>.runtime\kubernetes</code>.
+The application does <strong>not</strong> receive the administrator kubeconfig. Never print,
+commit, upload or place these files inside an image. Protect the directory with
+your Windows account's file permissions. The Docker build context excludes it.</p>
+<p>Renew credentials without changing workloads:</p>
+<pre><code class="language-powershell">.\scripts\setup-kubernetes.ps1 -Namespace remedi-demo
+</code></pre>
+<p>The adapter rereads the token file for each request, so renewal does not need an
+application restart for token-only rotation. If the cluster endpoint or TLS
+identity changes, recreate the backend with the overlay after refreshing setup.
+Expiry/401/403/TLS/network failures are surfaced explicitly;
+no simulator fallback or disabled TLS verification is used.</p>
+<p>Enable the explicit Compose overlay:</p>
+<pre><code class="language-powershell">docker compose -f compose.yaml -f compose.kubernetes.yaml up -d --build --wait
+</code></pre>
+<p>This builds local working-tree images with the default <code>latest</code> tag. It is not a
+SHA-certified Actions deployment. Existing named database storage is preserved.
+Use the tested CI/CD path for commit-tagged deployment. Docker containers reach
+the API at the endpoint discovered by setup in the selected <code>docker-desktop</code>
+context. Docker Desktop's newer clusters can use a dynamic loopback port rather
+than 6443. Setup maps loopback transport to <code>host.docker.internal</code> at that exact
+port and preserves the context's TLS server name (or original server hostname)
+for certificate identity verification, analogous to Kubernetes <code>tls-server-name</code>.
+The generated private-directory <code>connection.env</code> supplies both values. The CA and
+hostname are still verified; this does not skip certificate checks or expose a proxy.
+If the endpoint is unavailable, resolve Docker Desktop networking; do not disable TLS.</p>
+<h2 id="walkthrough-diagnose-first-approve-separately">Walkthrough: diagnose first, approve separately</h2>
+<ol>
+<li>Open <a href="http://127.0.0.1:8082">http://127.0.0.1:8082</a> and connect with the <strong>operator</strong> token.</li>
+<li>Confirm the sidebar says <strong>REAL KUBERNETES ENABLED</strong> and <code>remedi-demo</code>.</li>
+<li>Select <strong>Kubernetes OOMKilled</strong> and press <strong>Diagnose live pods</strong>.</li>
+<li>Watch <strong>Remediation progress</strong> and the live audit timeline:
+evidence collection, model tool calls, observed evidence, proposal, fresh AI
+review, exact field checkpoint, and the policy decision.</li>
+<li>Inspect <strong>Evidence &amp; telemetry</strong> on the observation event. Look for actual
+OOMKilled, the 32Mi limit, pod UID and Kubernetes event reason/message.</li>
+<li>Inspect <strong>Exact Kubernetes change for approval</strong>: namespace/Deployment,
+before/after values and rollback scope. Review the AI recommendation and judge event.</li>
+<li>At <code>awaiting_approval</code>, no remediation patch has been applied.
+Leave it here when only diagnosis has been authorized.</li>
+<li>To authorize the real change, reconnect with the <strong>owner</strong> token, reselect the
+incident, enter a meaningful reason and click <strong>Approve change</strong>.</li>
+<li>Watch apply/rollout and the measured consecutive readiness samples. Closure
+requires a current observed Deployment generation, exactly one updated/available
+replica, an owned current-revision Ready pod and no container restarts, on three
+consecutive checks of the same pod identity.</li>
+<li>Export the audit JSON and confirm actual cluster state independently:</li>
+</ol>
+<pre><code class="language-powershell">kubectl --context docker-desktop -n remedi-demo get deployments
+kubectl --context docker-desktop -n remedi-demo get pods
+kubectl --context docker-desktop -n remedi-demo get events --sort-by=.metadata.creationTimestamp
+</code></pre>
+<p>Repeat for the other three examples. The workflow never silently approves them.
+One active incident per target prevents competing approval plans. To repeat an
+already repaired example, a human must deliberately reset that specific workload
+after resolving/rejecting its active incident; the application does not reinject faults.</p>
+<h2 id="what-progress-means">What progress means</h2>
+<p>The UI shows recorded workflow stages, not artificial percentages or an ETA.
+Every rollout sample is persisted and streamed with actual pod state,
+replica counts and consecutive passes. Normal checks are two seconds apart,
+with a 120-second rollout deadline; configuration bounds are validated.</p>
+<ul>
+<li><code>closed</code>: three consecutive real readiness checks passed.</li>
+<li><code>rolled_back</code>: recovery timed out and the approved configuration field was
+restored and compared with its checkpoint. <strong>The original failing workload
+is still unresolved</strong>; rollback is not healthy recovery.</li>
+<li><code>escalated</code> / <code>rejected</code>: no remediation was applied.</li>
+<li><code>failed</code>: inspect both audit and cluster state. A network error or restart
+after patch submission may leave a change applied; no blind replay occurs.</li>
+</ul>
+<p>An approval becomes stale if the Deployment UID or pod template changes.
+The application compares the approved checkpoint, then uses Kubernetes JSON
+Patch UID/resourceVersion tests for an atomic update. Status-only changes do
+not invalidate approval. A failed rollback never overwrites an externally
+changed template. A failed diagnostic/reviewer call does not execute a remedy.</p>
+<h2 id="cicd-integration">CI/CD integration</h2>
+<p>Hosted CI remains cluster-free: mock-adapter/backend tests and mock-API UI
+tests validate real-mode gates and progress without live inference or writes.
+Existing simulator tests still run.</p>
+<p>To retain Kubernetes mode on future Actions deployment, explicitly set repository
+Actions variable <code>REMEDI_KUBERNETES_CREDENTIALS_DIR</code> to this machine's absolute
+private <code>.runtime\kubernetes</code> directory. This is only a path, not token data.
+The runner must be able to read it; refresh the token locally as needed.
+The default namespace is <code>remedi-demo</code>. The workflow passes the path to
+<code>deploy.ps1</code>, which selects the overlay and verifies the owner-gated configuration.
+Leaving the variable unset deploys the original simulation-only configuration.
+No variable has to be set for ordinary local Compose use.</p>
+<p>The existing optional <code>live_smoke</code> still runs only the synthetic cache scenario.
+It never approves or remediates Kubernetes workloads. Image rollback retains
+database storage; it does not undo real cluster changes already approved.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kubernetes examples missing</td>
+<td>Explicit overlay, <code>/api/config</code> Kubernetes enabled, current frontend image</td>
+</tr>
+<tr>
+<td>401 / 403</td>
+<td>Renew token, verify namespace Role/RoleBinding; do not give cluster-admin</td>
+</tr>
+<tr>
+<td>TLS / connection error</td>
+<td>Docker Desktop Kubernetes enabled, container DNS/API endpoint and saved CA</td>
+</tr>
+<tr>
+<td>No failure evidence yet</td>
+<td>Wait for container startup/backoff, image pull or scheduler events; inspect pods directly</td>
+</tr>
+<tr>
+<td>Model escalates</td>
+<td>Inspect actual evidence and model justification; do not bypass policy</td>
+</tr>
+<tr>
+<td>Target changed / stale approval</td>
+<td>Reject/resolve old incident and diagnose again; never reuse its checkpoint</td>
+</tr>
+<tr>
+<td>Queue conflict</td>
+<td>A prior incident for that target is still active; review it first</td>
+</tr>
+<tr>
+<td>Timeout / rollback</td>
+<td>Inspect pod events and resources; checkpoint restoration is not recovery</td>
+</tr>
+<tr>
+<td>App restart after patch</td>
+<td>Workflow fails without replay; inspect actual Deployment before further action</td>
+</tr>
+</tbody>
+</table>
+</main>
+</body>
+</html>

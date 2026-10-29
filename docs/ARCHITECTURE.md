@@ -5,6 +5,13 @@ function tools, with a custom `BaseLlm` adapter to the isolated Copilot SDK.
 Dynamic proposals receive a second fresh ADK reviewer invocation. See
 [dynamic cases, boundaries and evaluation](ADK_DYNAMIC.md).
 
+**Opt-in execution adapter:** [Real Kubernetes examples](KUBERNETES.md) extend
+this baseline with namespace-scoped pod/event/ReplicaSet evidence and bounded
+Deployment JSON patches. Every real change requires owner approval of the
+persisted field checkpoint. Three consecutive current-rollout readiness checks
+determine recovery, with streamed measured progress. The simulator remains the
+default for the original eight scenarios. The diagrams below describe that baseline.
+
 ## Independent variant
 
 Only source/configuration templates were copied from the original application.
@@ -46,7 +53,9 @@ Each controller step opens a fresh session:
 - A deny-all permission handler is installed as defense in depth.
 - The isolated working directory contains no repository source or secrets.
 - The system prompt contains the task's control protocol, not VS Code agent/session
-  instructions. Only generated synthetic evidence is submitted.
+  instructions. Synthetic evidence is submitted for the original scenarios;
+  opt-in Kubernetes cases submit selected actual pod/configuration/event evidence,
+  never kubeconfig, Secret values, full environment dumps or pod logs.
 - A phase-specific JSON schema is passed through `send_and_wait(response_schema=...)`.
   Returned JSON is validated again with Pydantic and the controller phase allowlist.
 - Usage is collected from actual `AssistantUsageData` events, not estimated from text.

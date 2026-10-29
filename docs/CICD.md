@@ -1,5 +1,12 @@
 # GitHub Actions and local Docker deployment
 
+For [owner-approved repository remediation](GITHUB_REMEDIATION.md), merged
+manifest-only changes run the full hosted CI gate but do not restart the
+application containers. The controller watches the exact merge commit's trusted
+CI result and then deploys the bounded approved field to the demo namespace.
+Configure the GitHub App/key-path and Kubernetes directory variables before
+releasing that feature. The application never automatically merges remediation PRs.
+
 The `CI and local Docker deployment` workflow runs on pushes to `main`, pull
 requests targeting `main`, and manual dispatches. CI runs on GitHub-hosted Linux:
 hashed runtime restore, backend lint/tests, dependency audits, frontend type/build
@@ -36,6 +43,12 @@ Windows PowerShell 5.1. Pull requests never execute on the local runner. Only
 trusted maintainers should have workflow write or dispatch access.
 
 ## Machine prerequisites
+
+For optional real Docker Desktop Kubernetes examples, see
+[Kubernetes setup and deployment](KUBERNETES.md). Set repository variable
+`REMEDI_KUBERNETES_CREDENTIALS_DIR` to the absolute local private credential
+directory to select the owner-gated Compose overlay during deployment.
+The default CI fixture stack never connects to Kubernetes.
 
 - Keep the registered runner, Windows session and Docker Desktop Linux engine running.
 - Set repository Actions variable `REMEDI_LOCAL_ENV_FILE` to the absolute path of

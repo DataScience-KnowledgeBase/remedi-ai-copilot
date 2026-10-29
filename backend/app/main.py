@@ -16,6 +16,8 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.config import Settings, get_settings
 from app.domain import (
+    KUBE_RUNBOOKS,
+    KUBE_TARGETS,
     PROMPT_VERSION,
     RUNBOOK_VERSION,
     RUNBOOKS,
@@ -126,7 +128,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "role": identity,
             "provider": config.provider,
             "model": app.state.provider.model,
-            "simulation_only": True,
+            "simulation_only": not config.kubernetes_enabled,
+            "kubernetes": {
+                "enabled": config.kubernetes_enabled,
+                "namespace": config.kubernetes_namespace,
+                "owner_approval_required": True,
+                "targets": KUBE_TARGETS if config.kubernetes_enabled else {},
+            },
+            "github_gitops": {
+                "enabled": config.github_gitops_enabled,
+                "repository": config.github_repository,
+                "approval_action": "create_pull_request"
+                if config.github_gitops_enabled
+                else "execute",
+                "manual_merge_required": True,
+            },
             "api_egress": config.copilot_allow_egress
             if config.provider == "copilot"
             else config.allow_api_egress,
@@ -166,6 +182,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             )
 
+    @app.get("/api/repository-status")
+    async def repository_status(_identity: Role):
+        if not config.github_gitops_enabled:
+            return {"ready": False, "message": "Repository-backed deployment is disabled"}
+        try:
+            snapshot = await app.state.engine.github.snapshot()
+            return {
+                "ready": True,
+                "repository": config.github_repository,
+                "commit_sha": snapshot["commit_sha"],
+                "message": "Repository manifest available; owner approval creates a PR only.",
+            }
+        except ProviderError as exc:
+            return JSONResponse(status_code=503, content={"ready": False, "message": str(exc)})
+
     @app.post("/api/incidents", status_code=202)
     async def create_incident(
         body: IncidentInput,
@@ -174,6 +205,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ):
         if identity != "operator":
             raise HTTPException(403, "Only operators ingest incidents; owners approve")
+        if body.scenario in KUBE_TARGETS and not config.kubernetes_enabled:
+            raise HTTPException(
+                409,
+                "Real Kubernetes integration is not enabled; no fixture fallback",
+            )
         if config.provider == "copilot":
             try:
                 await app.state.provider.ready()
@@ -232,6 +268,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def approve(incident_id: str, body: ApprovalInput, identity: Role):
         if identity != "owner":
             raise HTTPException(403, "Accountable owner role required")
+        incident = app.state.store.get(incident_id)
+        repository_approval = (
+            incident["scenario"] in KUBE_TARGETS and config.github_gitops_enabled
+        )
+        if body.decision == "approve":
+            if repository_approval:
+                plans = [
+                    event
+                    for event in app.state.store.events(incident_id)
+                    if event["stage"] == "repository_plan"
+                ]
+                if not plans:
+                    raise HTTPException(
+                        409,
+                        "Legacy proposal has no repository diff. Reject it and diagnose "
+                        "again after the integration manifests are merged into main.",
+                    )
+                try:
+                    app.state.engine.github.validate_checkpoint(
+                        plans[-1]["payload"]["plan"],
+                        incident["scenario"],
+                    )
+                except ProviderError as exc:
+                    raise HTTPException(409, str(exc)) from exc
         status = "approved" if body.decision == "approve" else "rejected"
         app.state.store.transition(
             incident_id,
@@ -240,7 +300,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "approval",
             body.reason,
             actor="owner",
-            payload={"decision": body.decision, "scope": "exact persisted proposal"},
+            payload={
+                "decision": body.decision,
+                "scope": (
+                    "exact repository diff" if repository_approval else "exact persisted proposal"
+                ),
+                "action": "create_pull_request" if repository_approval else "execute",
+            },
         )
         if status == "rejected":
             OUTCOMES.labels(status).inc()
@@ -248,7 +314,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/runbooks")
     async def runbooks(_identity: Role):
-        return {"version": RUNBOOK_VERSION, "items": list(RUNBOOKS.values())}
+        books = {**RUNBOOKS, **(KUBE_RUNBOOKS if config.kubernetes_enabled else {})}
+        return {"version": RUNBOOK_VERSION, "items": list(books.values())}
 
     @app.get("/api/feedback")
     async def feedback(_identity: Role):

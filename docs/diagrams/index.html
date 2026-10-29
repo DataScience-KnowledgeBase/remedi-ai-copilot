@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RemediAI Copilot | Architecture and workflow diagrams</title>
+  <style>
+    :root{color-scheme:light;font-family:Segoe UI,Arial,sans-serif;color:#172b45;background:#eef2f8}
+    *{box-sizing:border-box}body{margin:0}header,main,footer{max-width:1500px;margin:auto;padding:28px}
+    header{padding-top:40px}h1{font-size:34px;margin:8px 0 14px}h2{font-size:24px;margin:0 0 8px}
+    p{line-height:1.65;color:#52647b}a{color:#145e99}nav{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+    nav a,.button{display:inline-block;padding:10px 15px;border:1px solid #cbd5e1;border-radius:9px;background:white;text-decoration:none}
+    .badge{font-size:12px;letter-spacing:2px;font-weight:700;color:#0b7866}.note{padding:16px 20px;border-left:4px solid #b88627;background:#fffbeb;border-radius:5px}
+    section{background:white;border:1px solid #d9e1ec;border-radius:16px;padding:24px;margin-bottom:28px;scroll-margin-top:20px}
+    .diagram{overflow-x:auto;background:#f6f8fc;border:1px solid #e4eaf1;border-radius:10px;margin-top:20px}
+    img{display:block;width:100%;height:auto;min-width:900px}.links{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px}
+    code{font-size:13px;background:#e7edf5;padding:3px 6px;border-radius:4px}
+    footer{font-size:14px;line-height:1.7;color:#52647b}
+    @media print{body{background:white}header,footer,.links{display:none}main{padding:0;max-width:none}section{padding:0;margin:0;border:0;break-before:page;break-inside:avoid}section:first-child{break-before:auto}h2{font-size:20px}section>p{font-size:12px;margin:4px 0}.diagram{border:0;overflow:visible;margin-top:8px;display:flex;justify-content:center}img{min-width:0;width:auto;max-width:100%;height:auto;max-height:225mm}}
+    @page{size:A3 landscape;margin:12mm}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="badge">IMPLEMENTED SYSTEM / 26 OCTOBER 2026</div>
+    <h1>RemediAI Copilot</h1>
+    <p>Solution architecture, technical deployment and governed incident workflow.
+      Source baseline: <code>bec87e8</code>. These diagrams describe the Copilot
+      variant, not the separate GPU/Ollama application.</p>
+    <div class="note"><strong>Scope:</strong> real Google ADK orchestration and Copilot inference,
+      but simulated infrastructure and remediation. Single-identity local pilot;
+      no production ITSM/executor integration or enterprise identity is implied.</div>
+    <p><strong>Baseline diagrams:</strong> these predate the opt-in
+      <a href="../KUBERNETES.md">real Kubernetes adapter and live progress</a>.
+      The original eight scenarios remain simulated; Kubernetes examples use
+      a separate namespace-scoped, owner-approved execution path.</p>
+    <nav aria-label="Diagram navigation">
+      <a href="#architecture">01 / Architecture</a>
+      <a href="#technical">02 / Technical deployment</a>
+      <a href="#workflow">03 / Incident workflow</a>
+      <a href="diagrams.md">Editable Mermaid sources</a>
+      <a href="remedi-ai-copilot-diagrams.pdf">Download PDF</a>
+    </nav>
+  </header>
+  <main>
+    <section id="architecture">
+      <h2>01 / Solution architecture</h2>
+      <p>System components, data flows, trust boundaries and the separation of model recommendations from deterministic authority.</p>
+      <div class="diagram"><img src="architecture.svg" width="1440" height="1000" alt="Solution architecture showing browser, FastAPI, SQLite, ADK read-only tools, isolated Copilot runtime, policy and simulator."></div>
+      <div class="links"><a href="architecture.svg" download>Download SVG</a><a href="architecture.svg" target="_blank" rel="noopener">Open full-size diagram</a></div>
+    </section>
+    <section id="technical">
+      <h2>02 / Technical deployment + CI/CD</h2>
+      <p>Hosted Linux validation and gated Windows deployment to Docker Desktop, with SHA-tagged images, health checks and rollback.</p>
+      <div class="diagram"><img src="technical.svg" width="1440" height="1080" alt="Technical diagram showing private GitHub repository, hosted CI, local runner, external private configuration, Docker containers and persistent volume."></div>
+      <div class="links"><a href="technical.svg" download>Download SVG</a><a href="technical.svg" target="_blank" rel="noopener">Open full-size diagram</a></div>
+    </section>
+    <section id="workflow">
+      <h2>03 / Governed incident workflow</h2>
+      <p>Evidence-based triage, optional reviewer, owner approval, simulated execution, independent recovery verification and reviewed learning.</p>
+      <div class="diagram"><img src="workflow.svg" width="1440" height="1390" alt="Workflow showing admission, triage, policy, reviewer, automatic or owner-gated execution, three health probes, closure and rollback."></div>
+      <div class="links"><a href="workflow.svg" download>Download SVG</a><a href="workflow.svg" target="_blank" rel="noopener">Open full-size diagram</a></div>
+    </section>
+  </main>
+  <footer>
+    <strong>Source of truth:</strong> <a href="../ARCHITECTURE.md">architecture and scope</a>,
+    <a href="../ADK_DYNAMIC.md">ADK runtime</a>,
+    <a href="../CICD.md">CI/CD</a>, and repository implementation.<br>
+    Private ADK <code>2.12.0+remedi.1</code>, OpenTelemetry API/SDK <code>1.45.1</code>,
+    configured model <code>claude-sonnet-5</code>. Versions and model are the deployment baseline, not automatic future selections.<br>
+    Offline viewing: no CDN, external fonts, JavaScript or network requests are required.
+    Use browser Print / Save as PDF for a printable copy. SVGs remain editable vector assets.
+  </footer>
+</body>
+</html>
