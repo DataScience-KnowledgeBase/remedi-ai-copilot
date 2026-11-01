@@ -5,12 +5,13 @@ from pathlib import Path
 
 import httpx
 import pytest
+import yaml
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.domain import AgentStep
+from app.domain import KUBE_TARGETS, AgentStep
 from app.engine import Engine
 from app.github_gitops import (
     ACTIONS_APP_ID,
@@ -18,6 +19,7 @@ from app.github_gitops import (
     MANIFEST_PATH,
     GitHubGitOps,
     documents,
+    field_parent,
     manifest_change,
     target_document,
 )
@@ -46,7 +48,13 @@ def settings(tmp_path):
 
 @pytest.fixture
 def content():
-    return (Path(__file__).parents[2] / "kubernetes" / "examples.yaml").read_text()
+    return yaml.safe_dump_all(
+        [
+            {"apiVersion": "apps/v1", "kind": "Deployment", **deployment(scenario)}
+            for scenario in KUBE_TARGETS
+        ],
+        sort_keys=False,
+    )
 
 
 @pytest.fixture
@@ -117,7 +125,21 @@ def test_manifest_edit_changes_only_approved_field(content):
         )
         original_docs = documents(content)
         new_docs = documents(updated)
-        target = target_document(content, scenario)["metadata"]["name"]
+        original_target = target_document(content, scenario)
+        new_target = target_document(updated, scenario)
+        target = original_target["metadata"]["name"]
+        expected_target = deepcopy(original_target)
+        expected_parent, expected_key = field_parent(expected_target, pointer)
+        assert expected_parent[expected_key] == before
+        if operation == "replace":
+            expected_parent[expected_key] = after
+            new_parent, new_key = field_parent(new_target, pointer)
+            assert new_parent[new_key] == after
+        else:
+            del expected_parent[expected_key]
+            new_parent, new_key = field_parent(new_target, pointer)
+            assert new_key not in new_parent
+        assert new_target == expected_target
         for original, new in zip(original_docs, new_docs, strict=True):
             if original["metadata"]["name"] != target:
                 assert original == new
@@ -133,6 +155,51 @@ def test_manifest_edit_changes_only_approved_field(content):
                 "operation": "replace",
             },
         )
+
+
+def test_manifest_edit_rejects_absent_approved_field(content):
+    items = documents(content)
+    for item in items:
+        if item["metadata"]["name"] == KUBE_TARGETS["k8s_pending"]:
+            item["spec"]["template"]["spec"]["nodeSelector"] = {}
+    with pytest.raises(ProviderError, match="Approved field is absent"):
+        manifest_change(
+            yaml.safe_dump_all(items),
+            "k8s_pending",
+            {
+                "path": "/spec/template/spec/nodeSelector/remedi.demo~1unavailable",
+                "before": "true",
+                "after": None,
+                "operation": "remove",
+            },
+        )
+
+
+def test_checked_in_manifest_scripts_and_pending_remediation_round_trip():
+    content = (Path(__file__).resolve().parents[2] / MANIFEST_PATH).read_text(encoding="utf-8")
+    original = documents(content)
+    for document in original:
+        script = document["spec"]["template"]["spec"]["containers"][0]["args"][0]
+        compile(script, document["metadata"]["name"], "exec")
+    pending = target_document(content, "k8s_pending")
+    assert pending["spec"]["template"]["spec"]["nodeSelector"] == {
+        "remedi.demo/unavailable": "true",
+    }
+    updated = manifest_change(
+        content,
+        "k8s_pending",
+        {
+            "path": "/spec/template/spec/nodeSelector/remedi.demo~1unavailable",
+            "before": "true",
+            "after": None,
+            "operation": "remove",
+        },
+    )
+    expected = deepcopy(original)
+    for document in expected:
+        if document["metadata"]["name"] == KUBE_TARGETS["k8s_pending"]:
+            document["spec"]["template"]["spec"]["nodeSelector"] = {}
+    assert documents(updated) == expected
 
 
 def test_jwt_is_signed_without_persisting_installation_token(settings, tmp_path):
