@@ -89,6 +89,8 @@ uses Ctrl+C. The user-initiated login and native start scripts do not print toke
 ## Dependencies and security evidence
 
 Runtime Python dependencies are locked with hashes in `backend/requirements.lock`.
+The lock pins the transitive ASN.1 dependency `pyasn1==0.6.5`, upgrading 0.6.4
+to the fix release identified by the CI dependency audit.
 Use `pip install --require-hashes -r ...` before installing the application with
 `--no-deps`; development tools are separate. npm locks cover frontend and local CLI.
 Python/npm audits are point-in-time dependency checks, not image/OS or full security

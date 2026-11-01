@@ -1,6 +1,7 @@
 import base64
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import httpx
 import pytest
@@ -157,6 +158,33 @@ def test_manifest_edit_rejects_absent_approved_field(content):
                 "operation": "remove",
             },
         )
+
+
+def test_checked_in_manifest_scripts_and_pending_remediation_round_trip():
+    content = (Path(__file__).resolve().parents[2] / MANIFEST_PATH).read_text(encoding="utf-8")
+    original = documents(content)
+    for document in original:
+        script = document["spec"]["template"]["spec"]["containers"][0]["args"][0]
+        compile(script, document["metadata"]["name"], "exec")
+    pending = target_document(content, "k8s_pending")
+    assert pending["spec"]["template"]["spec"]["nodeSelector"] == {
+        "remedi.demo/unavailable": "true",
+    }
+    updated = manifest_change(
+        content,
+        "k8s_pending",
+        {
+            "path": "/spec/template/spec/nodeSelector/remedi.demo~1unavailable",
+            "before": "true",
+            "after": None,
+            "operation": "remove",
+        },
+    )
+    expected = deepcopy(original)
+    for document in expected:
+        if document["metadata"]["name"] == KUBE_TARGETS["k8s_pending"]:
+            document["spec"]["template"]["spec"]["nodeSelector"] = {}
+    assert documents(updated) == expected
 
 
 def test_jwt_is_signed_without_persisting_installation_token(settings, tmp_path):
