@@ -1,16 +1,16 @@
 import base64
 import json
 from copy import deepcopy
-from pathlib import Path
 
 import httpx
 import pytest
+import yaml
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.domain import AgentStep
+from app.domain import KUBE_TARGETS, AgentStep
 from app.engine import Engine
 from app.github_gitops import (
     ACTIONS_APP_ID,
@@ -46,7 +46,13 @@ def settings(tmp_path):
 
 @pytest.fixture
 def content():
-    return (Path(__file__).parents[2] / "kubernetes" / "examples.yaml").read_text()
+    return yaml.safe_dump_all(
+        [
+            {"apiVersion": "apps/v1", "kind": "Deployment", **deployment(scenario)}
+            for scenario in KUBE_TARGETS
+        ],
+        sort_keys=False,
+    )
 
 
 @pytest.fixture
@@ -131,6 +137,24 @@ def test_manifest_edit_changes_only_approved_field(content):
                 "before": "not-the-baseline",
                 "after": "false",
                 "operation": "replace",
+            },
+        )
+
+
+def test_manifest_edit_rejects_absent_approved_field(content):
+    items = documents(content)
+    for item in items:
+        if item["metadata"]["name"] == KUBE_TARGETS["k8s_pending"]:
+            item["spec"]["template"]["spec"]["nodeSelector"] = {}
+    with pytest.raises(ProviderError, match="Approved field is absent"):
+        manifest_change(
+            yaml.safe_dump_all(items),
+            "k8s_pending",
+            {
+                "path": "/spec/template/spec/nodeSelector/remedi.demo~1unavailable",
+                "before": "true",
+                "after": None,
+                "operation": "remove",
             },
         )
 
