@@ -202,7 +202,8 @@ spec:
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 3
-      nodeSelector: {}
+      nodeSelector:
+        remedi.demo/unavailable: "true"
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
