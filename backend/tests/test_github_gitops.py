@@ -181,10 +181,16 @@ def test_checked_in_manifest_scripts_and_pending_remediation_round_trip():
     for document in original:
         script = document["spec"]["template"]["spec"]["containers"][0]["args"][0]
         compile(script, document["metadata"]["name"], "exec")
-    pending = target_document(content, "k8s_pending")
-    assert pending["spec"]["template"]["spec"]["nodeSelector"] == {
-        "remedi.demo/unavailable": "true",
-    }
+    pending = next(
+        document
+        for document in original
+        if document["metadata"]["name"] == KUBE_TARGETS["k8s_pending"]
+    )
+    faulty_selector = {"remedi.demo/unavailable": "true"}
+    assert pending["spec"]["template"]["spec"]["nodeSelector"] in ({}, faulty_selector)
+    # Exercise remediation even when the checked-in manifest is already repaired.
+    pending["spec"]["template"]["spec"]["nodeSelector"] = faulty_selector
+    content = yaml.safe_dump_all(original, sort_keys=False)
     updated = manifest_change(
         content,
         "k8s_pending",
@@ -200,6 +206,17 @@ def test_checked_in_manifest_scripts_and_pending_remediation_round_trip():
         if document["metadata"]["name"] == KUBE_TARGETS["k8s_pending"]:
             document["spec"]["template"]["spec"]["nodeSelector"] = {}
     assert documents(updated) == expected
+    restored = manifest_change(
+        updated,
+        "k8s_pending",
+        {
+            "path": "/spec/template/spec/nodeSelector",
+            "before": {},
+            "after": faulty_selector,
+            "operation": "replace",
+        },
+    )
+    assert documents(restored) == original
 
 
 def test_jwt_is_signed_without_persisting_installation_token(settings, tmp_path):
