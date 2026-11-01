@@ -19,6 +19,7 @@ from app.github_gitops import (
     MANIFEST_PATH,
     GitHubGitOps,
     documents,
+    field_parent,
     manifest_change,
     target_document,
 )
@@ -124,7 +125,21 @@ def test_manifest_edit_changes_only_approved_field(content):
         )
         original_docs = documents(content)
         new_docs = documents(updated)
-        target = target_document(content, scenario)["metadata"]["name"]
+        original_target = target_document(content, scenario)
+        new_target = target_document(updated, scenario)
+        target = original_target["metadata"]["name"]
+        expected_target = deepcopy(original_target)
+        expected_parent, expected_key = field_parent(expected_target, pointer)
+        assert expected_parent[expected_key] == before
+        if operation == "replace":
+            expected_parent[expected_key] = after
+            new_parent, new_key = field_parent(new_target, pointer)
+            assert new_parent[new_key] == after
+        else:
+            del expected_parent[expected_key]
+            new_parent, new_key = field_parent(new_target, pointer)
+            assert new_key not in new_parent
+        assert new_target == expected_target
         for original, new in zip(original_docs, new_docs, strict=True):
             if original["metadata"]["name"] != target:
                 assert original == new
